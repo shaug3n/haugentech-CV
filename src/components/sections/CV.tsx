@@ -8,7 +8,7 @@ function TimelineCard({ title, subtitle, period, html }: {
   title: string; subtitle: string; period: string; html?: string;
 }) {
   return (
-    <div className="rounded-2xl border border-neutral-200 bg-white p-5 transition-shadow transition-transform hover:shadow-md hover:-translate-y-0.5 dark:border-neutral-800 dark:bg-neutral-900">
+    <div className="rounded-2xl border border-neutral-200 bg-white p-5 transition-all hover:-translate-y-0.5 hover:shadow-md dark:border-neutral-800 dark:bg-neutral-900">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h3 className="font-semibold">{title}</h3>
         <span className="text-sm text-neutral-500">{period}</span>
