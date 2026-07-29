@@ -2,9 +2,9 @@
 import { redirect } from "next/navigation";
 import { createSupabaseServer } from "@/lib/supabase/server";
 import { profileSchema } from "@/lib/schemas";
-import { formDataToRecord, requireUser, revalidateSite, uploadImage } from "@/lib/admin/action-utils";
+import { formDataToRecord, requireUser, revalidateSite, uploadImage, withAdminAction } from "@/lib/admin/action-utils";
 
-export async function saveProfile(fd: FormData) {
+export const saveProfile = withAdminAction("/admin/profile?status=error", async (fd: FormData) => {
   const supabase = await createSupabaseServer();
   await requireUser(supabase);
 
@@ -23,4 +23,4 @@ export async function saveProfile(fd: FormData) {
 
   revalidateSite();
   redirect("/admin/profile?status=saved");
-}
+});

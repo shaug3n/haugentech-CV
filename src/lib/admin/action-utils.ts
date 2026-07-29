@@ -1,4 +1,5 @@
 import { revalidatePath } from "next/cache";
+import { redirect, unstable_rethrow } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export function revalidateSite() {
@@ -27,4 +28,37 @@ export async function uploadImage(
   const { error } = await supabase.storage.from("media").upload(path, file);
   if (error) throw error;
   return supabase.storage.from("media").getPublicUrl(path).data.publicUrl;
+}
+
+/**
+ * Wraps an admin mutating server action so that ANY thrown error — a stale
+ * session from `requireUser`, a failed image upload from `uploadImage`, or
+ * anything else that isn't handled with an explicit `if (error) redirect(...)`
+ * — lands the site owner back on `errorPath` with the same error banner a
+ * failed database write produces, instead of Next.js's generic crash screen.
+ *
+ * `redirect()` and `notFound()` work by throwing a special Next.js
+ * control-flow error. `unstable_rethrow` re-throws exactly those so a
+ * successful save's redirect (or a `notFound()`) still propagates untouched.
+ * Only genuine failures reach the `console.error` + redirect below, and the
+ * original error's message/stack is never sent to the browser.
+ *
+ * Every new admin editor (certifications, projects, posts, ...) should wrap
+ * its mutating action in this instead of hand-rolling try/catch, so the
+ * error-banner behavior is inherited by construction rather than by
+ * remembering to copy it.
+ */
+export function withAdminAction<Args extends unknown[]>(
+  errorPath: string,
+  action: (...args: Args) => Promise<void>,
+): (...args: Args) => Promise<void> {
+  return async (...args: Args) => {
+    try {
+      await action(...args);
+    } catch (err) {
+      unstable_rethrow(err);
+      console.error(`[admin action failed] ${errorPath}`, err);
+      redirect(errorPath);
+    }
+  };
 }
