@@ -11,6 +11,7 @@ export interface ProfileRow {
   email: string | null;
   linkedin_url: string | null;
   github_url: string | null;
+  updated_at: string;
 }
 
 export interface ExperienceRow {
