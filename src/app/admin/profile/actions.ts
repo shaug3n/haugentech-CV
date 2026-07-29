@@ -18,8 +18,13 @@ export const saveProfile = withAdminAction("/admin/profile?status=error", async 
     update.avatar_url = await uploadImage(supabase, avatar, "avatar");
   }
 
-  const { error } = await supabase.from("profile").update(update).eq("id", 1);
-  if (error) redirect("/admin/profile?status=error");
+  // `.select("id")` makes PostgREST return the rows actually affected. RLS's
+  // `USING` clause is a row filter, not a raising check: if the owner check
+  // in `is_site_owner()` ever fails to match (e.g. `ADMIN_EMAIL` drifts from
+  // the email hardcoded in the migration), this update silently touches zero
+  // rows instead of erroring — checking `data.length` catches that case too.
+  const { data, error } = await supabase.from("profile").update(update).eq("id", 1).select("id");
+  if (error || !data?.length) redirect("/admin/profile?status=error");
 
   revalidateSite();
   redirect("/admin/profile?status=saved");
