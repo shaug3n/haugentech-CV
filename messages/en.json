@@ -1,4 +1,7 @@
 {
+  "hero": {
+    "greeting": "Hi! 👋"
+  },
   "nav": {
     "about": "About",
     "cv": "CV",
