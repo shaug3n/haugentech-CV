@@ -4,7 +4,8 @@ import { Footer } from "@/components/Footer";
 import { Hero } from "@/components/sections/Hero";
 import { About } from "@/components/sections/About";
 import { CV } from "@/components/sections/CV";
-import { getProfile, getExperience, getEducation, getSkills } from "@/lib/queries";
+import { Certifications } from "@/components/sections/Certifications";
+import { getProfile, getExperience, getEducation, getSkills, getCertifications } from "@/lib/queries";
 import type { Locale } from "@/lib/types";
 
 export const dynamic = "force-static";
@@ -13,8 +14,8 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
   const { locale: raw } = await params;
   setRequestLocale(raw);
   const locale = raw as Locale;
-  const [profile, experience, education, skills] = await Promise.all([
-    getProfile(), getExperience(), getEducation(), getSkills(),
+  const [profile, experience, education, skills, certifications] = await Promise.all([
+    getProfile(), getExperience(), getEducation(), getSkills(), getCertifications(),
   ]);
   return (
     <>
@@ -23,6 +24,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
         {profile && <Hero profile={profile} locale={locale} />}
         {profile && <About profile={profile} locale={locale} />}
         <CV experience={experience} education={education} skills={skills} locale={locale} />
+        <Certifications certs={certifications} />
       </main>
       <Footer profile={profile} />
     </>
