@@ -18,7 +18,7 @@ export async function Projects({ projects, locale }: { projects: ProjectRow[]; l
           return (
             <FadeIn key={p.id} delay={Math.min(i * 0.05, 0.3)}
               className={row.featured ? "sm:col-span-2" : ""}>
-              <article className="flex h-full flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white transition-all hover:-translate-y-1 hover:shadow-md dark:border-neutral-800 dark:bg-neutral-900">
+              <article className="flex h-full flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white transition-all hover:-translate-y-0.5 hover:shadow-md dark:border-neutral-800 dark:bg-neutral-900">
                 {p.image_url && (
                   <Image src={p.image_url} alt={p.title} width={800} height={400}
                     className="h-44 w-full object-cover" />
