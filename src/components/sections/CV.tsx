@@ -8,7 +8,7 @@ function TimelineCard({ title, subtitle, period, html }: {
   title: string; subtitle: string; period: string; html?: string;
 }) {
   return (
-    <div className="relative rounded-2xl border border-neutral-200 bg-white p-5 transition-shadow hover:shadow-md dark:border-neutral-800 dark:bg-neutral-900">
+    <div className="rounded-2xl border border-neutral-200 bg-white p-5 transition-shadow transition-transform hover:shadow-md hover:-translate-y-0.5 dark:border-neutral-800 dark:bg-neutral-900">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h3 className="font-semibold">{title}</h3>
         <span className="text-sm text-neutral-500">{period}</span>
@@ -41,27 +41,29 @@ export async function CV({ experience, education, skills, locale }: {
 
   return (
     <section id="cv" className="mx-auto max-w-5xl px-4 py-16">
-      <div className="grid gap-12 md:grid-cols-2">
-        {expCards.length > 0 && (
-          <FadeIn>
-            <h2 className="mb-6 text-2xl font-semibold tracking-tight">{t("experience")}</h2>
-            <div className="relative flex flex-col gap-4 border-l-2 border-primary/30 pl-6">
-              {expCards.map((c) => <TimelineCard key={c.id} {...c} />)}
-            </div>
-          </FadeIn>
-        )}
-        {education.length > 0 && (
-          <FadeIn delay={0.1}>
-            <h2 className="mb-6 text-2xl font-semibold tracking-tight">{t("education")}</h2>
-            <div className="relative flex flex-col gap-4 border-l-2 border-primary/30 pl-6">
-              {education.map((row) => {
-                const e = localize(row, locale);
-                return <TimelineCard key={e.id} title={e.school} subtitle={e.degree} period={e.period} />;
-              })}
-            </div>
-          </FadeIn>
-        )}
-      </div>
+      {(expCards.length > 0 || education.length > 0) && (
+        <div className="grid gap-12 md:grid-cols-2">
+          {expCards.length > 0 && (
+            <FadeIn>
+              <h2 className="mb-6 text-2xl font-semibold tracking-tight">{t("experience")}</h2>
+              <div className="relative flex flex-col gap-4 border-l-2 border-primary/30 pl-6">
+                {expCards.map((c) => <TimelineCard key={c.id} {...c} />)}
+              </div>
+            </FadeIn>
+          )}
+          {education.length > 0 && (
+            <FadeIn delay={0.1}>
+              <h2 className="mb-6 text-2xl font-semibold tracking-tight">{t("education")}</h2>
+              <div className="relative flex flex-col gap-4 border-l-2 border-primary/30 pl-6">
+                {education.map((row) => {
+                  const e = localize(row, locale);
+                  return <TimelineCard key={e.id} title={e.school} subtitle={e.degree} period={e.period} />;
+                })}
+              </div>
+            </FadeIn>
+          )}
+        </div>
+      )}
       {skills.length > 0 && (
         <FadeIn className="mt-12">
           <h2 className="mb-6 text-2xl font-semibold tracking-tight">{t("skills")}</h2>
