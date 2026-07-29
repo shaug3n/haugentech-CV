@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { createSupabaseServer } from "@/lib/supabase/server";
+import { signOut } from "./actions";
 import "../globals.css";
 
 const NAV = [
@@ -13,13 +12,6 @@ const NAV = [
   ["Projects", "/admin/projects"],
   ["Posts", "/admin/posts"],
 ] as const;
-
-async function signOut() {
-  "use server";
-  const supabase = await createSupabaseServer();
-  await supabase.auth.signOut();
-  redirect("/admin/login");
-}
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (

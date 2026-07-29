@@ -1,28 +1,18 @@
 "use server";
-import { redirect } from "next/navigation";
-import { createSupabaseServer } from "@/lib/supabase/server";
 import { skillSchema } from "@/lib/schemas";
-import { formDataToRecord, requireUser, revalidateSite, withAdminAction } from "@/lib/admin/action-utils";
-import { nextSort } from "@/lib/admin/sortable";
+import { createCrudActions } from "@/lib/admin/crud-actions";
 
-const PATH = "/admin/skills";
-
-export const createSkill = withAdminAction(`${PATH}?status=error`, async (fd: FormData) => {
-  const supabase = await createSupabaseServer();
-  await requireUser(supabase);
-  const parsed = skillSchema.safeParse(formDataToRecord(fd));
-  if (!parsed.success) redirect(`${PATH}?status=error`);
-  const sort = await nextSort(supabase, "skills");
-  const { error } = await supabase.from("skills").insert({ ...parsed.data, sort });
-  if (error) redirect(`${PATH}?status=error`);
-  revalidateSite();
-  redirect(`${PATH}?status=saved`);
+// Skills has no reorder UI (the public section groups by category), but the
+// table does have a `sort` column and creates have always populated it — so
+// `assignSortOnCreate` stays on while `sortable` (which is what adds `move`)
+// does not. There is no update action either: a skill is name + category, and
+// the editor deletes and re-adds instead of editing in place.
+const actions = createCrudActions({
+  table: "skills",
+  path: "/admin/skills",
+  schema: skillSchema,
+  assignSortOnCreate: true,
 });
 
-export const deleteSkill = withAdminAction(`${PATH}?status=error`, async (fd: FormData) => {
-  const supabase = await createSupabaseServer();
-  await requireUser(supabase);
-  await supabase.from("skills").delete().eq("id", String(fd.get("id")));
-  revalidateSite();
-  redirect(`${PATH}?status=saved`);
-});
+export const createSkill = actions.create;
+export const deleteSkill = actions.remove;
