@@ -69,7 +69,13 @@ export const projectSchema = z.object({
 });
 
 export const postSchema = z.object({
-  slug: z.string().min(1).transform(slugify),
+  slug: z
+    .string()
+    .min(1)
+    .transform(slugify)
+    .refine((v) => v.length > 0, {
+      message: "Slug must contain at least one letter or number (e.g. \"my-post-title\").",
+    }),
   title_en: optional,
   title_no: optional,
   body_md_en: optional,
