@@ -35,6 +35,7 @@ function ProjectFields({ row }: { row?: ProjectRow }) {
         <span className="font-medium">Image</span>
         <input type="file" name="image" accept="image/*" className="mt-1 block text-sm" />
       </label>
+      {/* eslint-disable-next-line @next/next/no-img-element -- admin-only preview; avoids remote-pattern config for owner-only project thumbnail */}
       {row?.image_url && <img src={row.image_url} alt="" className="h-24 rounded-lg object-cover" />}
     </>
   );

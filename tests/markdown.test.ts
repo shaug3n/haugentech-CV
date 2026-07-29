@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { renderMarkdown } from "@/lib/markdown";
+import { Marked } from "marked";
+import { renderMarkdown, sanitizeHtml } from "@/lib/markdown";
 
 describe("renderMarkdown", () => {
   it("renders basic markdown", async () => {
@@ -110,5 +111,46 @@ describe("renderMarkdown", () => {
       // surviving sanitization on nested spans, not just the outer <pre>.
       expect(html).toContain("--shiki-dark");
     });
+  });
+});
+
+describe("sanitizeHtml (the admin preview's sanitizer)", () => {
+  // The MarkdownEditor preview parses markdown client-side and pipes the result
+  // through this exact function, so the preview cannot render anything the
+  // public pipeline would strip. Imported from @/lib/markdown here to also pin
+  // that markdown.ts keeps re-exporting it.
+  it("is the same function markdown.ts uses, and is synchronous", () => {
+    expect(typeof sanitizeHtml).toBe("function");
+    expect(sanitizeHtml("<p>ok</p>")).toBe("<p>ok</p>");
+  });
+
+  it("strips script tags", () => {
+    expect(sanitizeHtml("<p>hi</p><script>alert(1)</script>")).toBe("<p>hi</p>");
+  });
+
+  it("strips inline event handlers", () => {
+    const out = sanitizeHtml('<p onclick="alert(1)">hi</p>');
+    expect(out).not.toContain("onclick");
+    expect(out).toContain("hi");
+  });
+
+  it("drops javascript: hrefs while keeping the link text", () => {
+    const out = sanitizeHtml('<a href="javascript:alert(1)">click</a>');
+    expect(out).not.toContain("javascript:");
+    expect(out).toContain("click");
+  });
+
+  it("drops an onerror image payload", () => {
+    const out = sanitizeHtml('<img src="x" onerror="alert(1)">');
+    expect(out).not.toContain("onerror");
+  });
+
+  it("matches renderMarkdown's output for markdown with no code blocks", async () => {
+    // Shiki highlighting is the only intended difference between the preview and
+    // production; with no fenced code there should be none at all.
+    const md = "# Title\n\nSome **bold** and a <script>alert(1)</script> payload.";
+    const production = await renderMarkdown(md);
+    const preview = sanitizeHtml(new Marked({ gfm: true }).parse(md) as string);
+    expect(preview).toBe(production);
   });
 });

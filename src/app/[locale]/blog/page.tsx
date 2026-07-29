@@ -5,7 +5,7 @@ import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { FadeIn } from "@/components/FadeIn";
 import { getProfile, getPublishedPosts } from "@/lib/queries";
-import { localize, postAvailableIn } from "@/lib/localize";
+import { localize, postContentLocale } from "@/lib/localize";
 import { readingTimeMinutes } from "@/lib/reading-time";
 import type { Locale } from "@/lib/types";
 
@@ -29,12 +29,7 @@ export default async function BlogPage({ params }: { params: Promise<{ locale: s
         <div className="flex flex-col gap-4">
           {posts.map((post, i) => {
             const p = localize(post, locale);
-            const otherLocale: Locale = locale === "en" ? "no" : "en";
-            const contentLocale = postAvailableIn(post, locale)
-              ? null
-              : postAvailableIn(post, otherLocale)
-                ? otherLocale
-                : null;
+            const contentLocale = postContentLocale(post, locale);
             return (
               <FadeIn key={post.id} delay={Math.min(i * 0.05, 0.3)}>
                 <Link href={`/blog/${post.slug}`}

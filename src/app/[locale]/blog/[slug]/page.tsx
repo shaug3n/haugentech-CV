@@ -5,7 +5,7 @@ import { Link } from "@/i18n/navigation";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { getProfile, getPostBySlug, getPublishedPosts } from "@/lib/queries";
-import { localize, postAvailableIn } from "@/lib/localize";
+import { localize, postContentLocale } from "@/lib/localize";
 import { renderMarkdown } from "@/lib/markdown";
 import { readingTimeMinutes } from "@/lib/reading-time";
 import { routing } from "@/i18n/routing";
@@ -32,12 +32,7 @@ export default async function PostPage({ params }: {
   if (!post) notFound();
 
   const p = localize(post, locale);
-  const otherLocale: Locale = locale === "en" ? "no" : "en";
-  const contentLocale = postAvailableIn(post, locale)
-    ? null
-    : postAvailableIn(post, otherLocale)
-      ? otherLocale
-      : null;
+  const contentLocale = postContentLocale(post, locale);
   if (!p.title || !p.body_md) notFound();
   const html = await renderMarkdown(p.body_md);
 

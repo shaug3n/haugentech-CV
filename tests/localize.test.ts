@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { localize, postAvailableIn } from "@/lib/localize";
+import { localize, postAvailableIn, postContentLocale } from "@/lib/localize";
 import type { ExperienceRow, PostRow } from "@/lib/types";
 
 describe("localize", () => {
@@ -112,5 +112,49 @@ describe("postAvailableIn", () => {
   });
   it("false for untranslated locale", () => {
     expect(postAvailableIn(basePost, "no")).toBe(false);
+  });
+});
+
+describe("postContentLocale", () => {
+  // basePost is English-only (title_en + body_md_en, both _no columns null).
+  const bilingual: PostRow = { ...basePost, title_no: "T-no", body_md_no: "B-no" };
+  const norwegianOnly: PostRow = {
+    ...basePost, title_en: null, body_md_en: null, title_no: "T-no", body_md_no: "B-no",
+  };
+  const neither: PostRow = {
+    ...basePost, title_en: null, body_md_en: null, title_no: null, body_md_no: null,
+  };
+
+  it("returns null for a bilingual post in either locale — no tag needed", () => {
+    expect(postContentLocale(bilingual, "en")).toBeNull();
+    expect(postContentLocale(bilingual, "no")).toBeNull();
+  });
+
+  it("returns null when the post exists in the requested locale only", () => {
+    expect(postContentLocale(basePost, "en")).toBeNull();
+    expect(postContentLocale(norwegianOnly, "no")).toBeNull();
+  });
+
+  it("returns 'en' for an English-only post read on /no", () => {
+    // Regression guard for the shipped bug: this must be the language the text
+    // is actually IN ("English only"), never the reader's own locale.
+    expect(postContentLocale(basePost, "no")).toBe("en");
+  });
+
+  it("returns 'no' for a Norwegian-only post read on /en", () => {
+    expect(postContentLocale(norwegianOnly, "en")).toBe("no");
+  });
+
+  it("returns null for a post with usable content in neither language", () => {
+    // postSchema's publish guard should stop such a post from ever being
+    // published, so this shouldn't be reachable from the blog pages — but with
+    // nothing to display there is also nothing to label, so null is correct.
+    expect(postContentLocale(neither, "en")).toBeNull();
+    expect(postContentLocale(neither, "no")).toBeNull();
+  });
+
+  it("ignores a half-translated language (title but no body)", () => {
+    const halfNo: PostRow = { ...basePost, title_no: "T-no", body_md_no: null };
+    expect(postContentLocale(halfNo, "no")).toBe("en");
   });
 });

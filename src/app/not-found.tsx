@@ -1,3 +1,4 @@
+import Link from "next/link";
 import "./globals.css";
 
 export default function NotFound() {
@@ -9,9 +10,12 @@ export default function NotFound() {
           <p className="text-neutral-500">
             The page you are looking for does not exist.
           </p>
-          <a href="/en" className="rounded-lg bg-primary px-4 py-2 text-white">
+          {/* Hardcoded /en, not the next-intl `Link`: this root not-found is
+              rendered outside the [locale] segment, so there is no request
+              locale to be relative to. */}
+          <Link href="/en" className="rounded-lg bg-primary px-4 py-2 text-white">
             Go home
-          </a>
+          </Link>
         </main>
       </body>
     </html>

@@ -20,6 +20,7 @@ function CertFields({ row }: { row?: CertificationRow }) {
         <span className="font-medium">Badge image</span>
         <input type="file" name="badge" accept="image/*" className="mt-1 block text-sm" />
       </label>
+      {/* eslint-disable-next-line @next/next/no-img-element -- admin-only preview; avoids remote-pattern config for owner-only badge thumbnail */}
       {row?.badge_image_url && <img src={row.badge_image_url} alt="" className="h-16 w-16 object-contain" />}
     </>
   );
