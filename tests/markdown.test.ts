@@ -23,14 +23,54 @@ describe("renderMarkdown", () => {
       expect(html).not.toContain("alert(");
     });
 
-    it("strips onerror handlers from raw HTML images", async () => {
+    it("strips onerror handlers from raw HTML images but keeps the image", async () => {
       const html = await renderMarkdown('<img src="x" onerror="alert(1)">');
       expect(html).not.toContain("onerror");
+      expect(html).toContain("<img");
+      expect(html).toContain('src="x"');
     });
 
-    it("neutralizes javascript: URLs in links", async () => {
+    it("neutralizes javascript: URLs in links but keeps the link text", async () => {
       const html = await renderMarkdown("[click me](javascript:alert(1))");
       expect(html).not.toContain("javascript:");
+      expect(html).toContain("<a");
+      expect(html).toContain("click me");
+    });
+
+    it("strips <iframe> tags from the source", async () => {
+      const html = await renderMarkdown('<iframe src="https://evil.example"></iframe>\n\nHello');
+      expect(html).not.toContain("<iframe");
+      expect(html).toContain("Hello");
+    });
+
+    it("strips <object> tags from the source", async () => {
+      const html = await renderMarkdown('<object data="https://evil.example/x.swf"></object>\n\nHello');
+      expect(html).not.toContain("<object");
+      expect(html).toContain("Hello");
+    });
+
+    it("strips <embed> tags from the source", async () => {
+      const html = await renderMarkdown('<embed src="https://evil.example/x.swf">\n\nHello');
+      expect(html).not.toContain("<embed");
+      expect(html).toContain("Hello");
+    });
+
+    it("strips URL-bearing style properties (e.g. background-image) from raw HTML", async () => {
+      const html = await renderMarkdown(
+        '<span style="background-image:url(https://evil.example/track.png)">tracked text</span>'
+      );
+      expect(html).not.toContain("background-image");
+      expect(html).not.toContain("evil.example");
+      expect(html).toContain("tracked text");
+    });
+
+    it("strips positioning/overlay style properties from raw HTML", async () => {
+      const html = await renderMarkdown(
+        '<span style="position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:99999">overlay text</span>'
+      );
+      expect(html).not.toContain("position:fixed");
+      expect(html).not.toContain("z-index");
+      expect(html).toContain("overlay text");
     });
 
     it("preserves ordinary links", async () => {
