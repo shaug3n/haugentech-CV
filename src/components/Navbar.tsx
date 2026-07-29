@@ -34,14 +34,14 @@ export function Navbar() {
         <div className="flex items-center gap-2">
           <LocaleSwitch />
           <ThemeToggle />
-          <button aria-label={t("menu")} onClick={() => setOpen(!open)}
+          <button aria-label={t("menu")} aria-expanded={open} aria-controls="mobile-menu" onClick={() => setOpen(!open)}
             className="flex h-9 w-9 items-center justify-center rounded-lg border border-neutral-200 md:hidden dark:border-neutral-800">
             ☰
           </button>
         </div>
       </nav>
       {open && (
-        <div className="flex flex-col gap-4 border-t border-neutral-200/60 px-4 py-4 md:hidden dark:border-neutral-800/60">
+        <div id="mobile-menu" className="flex flex-col gap-4 border-t border-neutral-200/60 px-4 py-4 md:hidden dark:border-neutral-800/60">
           {links}
         </div>
       )}
