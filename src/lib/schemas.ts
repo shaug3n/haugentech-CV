@@ -1,7 +1,33 @@
 import { z } from "zod";
 
-const optional = z.string().optional().transform((v) => (v && v.trim() !== "" ? v.trim() : null));
+const trimToNull = (v: string | undefined) => (v && v.trim() !== "" ? v.trim() : null);
+
+const optional = z.string().optional().transform(trimToNull);
 const text = z.string().optional().transform((v) => v ?? "");
+
+/**
+ * An optional link. Every field using this is rendered straight into an
+ * `href=` on a statically generated public page, where the browser will happily
+ * execute a `javascript:` (or `data:`) URL on click — `marked`'s sanitizer
+ * never sees these values because they never pass through markdown. So the
+ * scheme is pinned here, at the only point where the value enters the database.
+ */
+const optionalUrl = z
+  .string()
+  .optional()
+  .transform(trimToNull)
+  .refine((v) => v === null || /^https?:\/\//i.test(v), {
+    message: 'Enter a full URL starting with http:// or https:// (for example "https://example.com").',
+  });
+
+/** An optional email address, empty-string-becomes-null preserved. */
+const optionalEmail = z
+  .string()
+  .optional()
+  .transform(trimToNull)
+  .refine((v) => v === null || z.string().email().safeParse(v).success, {
+    message: 'Enter a valid email address (for example "you@example.com").',
+  });
 const checkbox = z.string().optional().transform((v) => v === "on" || v === "true");
 const tags = z.string().optional().transform((v) =>
   (v ?? "").split(",").map((s) => s.trim()).filter(Boolean),
@@ -22,9 +48,9 @@ export const profileSchema = z.object({
   headline_no: text,
   about_md_en: text,
   about_md_no: text,
-  email: optional,
-  linkedin_url: optional,
-  github_url: optional,
+  email: optionalEmail,
+  linkedin_url: optionalUrl,
+  github_url: optionalUrl,
 });
 
 export const experienceSchema = z.object({
@@ -52,7 +78,7 @@ export const certificationSchema = z.object({
   name: z.string().min(1),
   issuer: text,
   date: text,
-  credential_url: optional,
+  credential_url: optionalUrl,
 });
 
 export const projectSchema = z.object({
@@ -63,22 +89,41 @@ export const projectSchema = z.object({
   description_md_en: text,
   description_md_no: text,
   tech_tags: tags,
-  repo_url: optional,
-  live_url: optional,
+  repo_url: optionalUrl,
+  live_url: optionalUrl,
   featured: checkbox,
 });
 
-export const postSchema = z.object({
-  slug: z
-    .string()
-    .min(1)
-    .transform(slugify)
-    .refine((v) => v.length > 0, {
-      message: "Slug must contain at least one letter or number (e.g. \"my-post-title\").",
-    }),
-  title_en: optional,
-  title_no: optional,
-  body_md_en: optional,
-  body_md_no: optional,
-  published: checkbox,
-});
+/** A post is displayable in a language only if it has BOTH a title and a body there. */
+function hasCompleteLanguage(v: {
+  title_en: string | null; body_md_en: string | null;
+  title_no: string | null; body_md_no: string | null;
+}): boolean {
+  return Boolean(v.title_en && v.body_md_en) || Boolean(v.title_no && v.body_md_no);
+}
+
+export const postSchema = z
+  .object({
+    slug: z
+      .string()
+      .min(1)
+      .transform(slugify)
+      .refine((v) => v.length > 0, {
+        message: "Slug must contain at least one letter or number (e.g. \"my-post-title\").",
+      }),
+    title_en: optional,
+    title_no: optional,
+    body_md_en: optional,
+    body_md_no: optional,
+    published: checkbox,
+  })
+  // Publish guard. `getPublishedPosts()` filters on `published` alone, so a post
+  // ticked published with nothing in either language renders an empty card on
+  // /blog whose link then 404s (the post page calls notFound() when the
+  // localized title or body is missing). Blocking it here means drafts can still
+  // be saved half-finished — only the published flag needs real content. Mirrors
+  // `postAvailableIn()` in src/lib/localize.ts.
+  .refine((v) => !v.published || hasCompleteLanguage(v), {
+    message: "A post needs both a title and body in at least one language before it can be published.",
+    path: ["published"],
+  });

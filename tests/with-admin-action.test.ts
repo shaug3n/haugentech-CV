@@ -1,6 +1,7 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { redirect } from "next/navigation";
-import { withAdminAction } from "@/lib/admin/action-utils";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { requireUser, withAdminAction } from "@/lib/admin/action-utils";
 
 function isNextRedirectError(err: unknown): boolean {
   return (
@@ -79,5 +80,53 @@ describe("withAdminAction", () => {
 
     expect(isNextRedirectError(caught)).toBe(true);
     expect((caught as { digest: string }).digest).toContain("/admin/certifications?status=error");
+  });
+});
+
+/** Minimal stand-in for `supabase.auth.getUser()`. */
+function fakeAuthClient(user: { email?: string } | null): SupabaseClient {
+  return {
+    auth: { getUser: async () => ({ data: { user } }) },
+  } as unknown as SupabaseClient;
+}
+
+describe("requireUser owner check", () => {
+  const original = process.env.ADMIN_EMAIL;
+
+  beforeEach(() => {
+    process.env.ADMIN_EMAIL = "owner@example.com";
+  });
+
+  afterEach(() => {
+    if (original === undefined) delete process.env.ADMIN_EMAIL;
+    else process.env.ADMIN_EMAIL = original;
+  });
+
+  it("accepts the owner", async () => {
+    await expect(requireUser(fakeAuthClient({ email: "owner@example.com" }))).resolves.toBeTruthy();
+  });
+
+  it("accepts the owner regardless of case and surrounding whitespace", async () => {
+    await expect(requireUser(fakeAuthClient({ email: " Owner@Example.com " }))).resolves.toBeTruthy();
+  });
+
+  it("rejects an unauthenticated caller", async () => {
+    await expect(requireUser(fakeAuthClient(null))).rejects.toThrow(/Unauthorized/);
+  });
+
+  it("rejects a different authenticated Supabase user (the C1 hole)", async () => {
+    // Anyone could hold a valid session for this project: the anon key is public
+    // and signup is on by default. "A user exists" is not authorization.
+    await expect(requireUser(fakeAuthClient({ email: "attacker@example.com" }))).rejects.toThrow(/Unauthorized/);
+  });
+
+  it("rejects a user with no email claim at all", async () => {
+    await expect(requireUser(fakeAuthClient({}))).rejects.toThrow(/Unauthorized/);
+  });
+
+  it("fails closed when ADMIN_EMAIL is not configured", async () => {
+    delete process.env.ADMIN_EMAIL;
+    await expect(requireUser(fakeAuthClient({ email: "owner@example.com" })))
+      .rejects.toThrow(/ADMIN_EMAIL is not configured/);
   });
 });

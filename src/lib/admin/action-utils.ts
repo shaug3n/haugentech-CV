@@ -6,9 +6,32 @@ export function revalidateSite() {
   revalidatePath("/", "layout");
 }
 
+/**
+ * Authorizes an admin write.
+ *
+ * "A session exists" is not the same as "the site owner is signed in": the
+ * Supabase anon key ships in the public client bundle, so anyone can hold a
+ * valid session for this project. The database's RLS policies are the real
+ * enforcement point (see `public.is_site_owner()` in
+ * supabase/migrations/0001_init.sql); this is the app-level half of the same
+ * check, so a non-owner gets a clean "Unauthorized" instead of a confusing
+ * silent RLS rejection.
+ *
+ * Fails closed when `ADMIN_EMAIL` is unset: a misconfigured deployment refuses
+ * writes rather than falling back to "any authenticated user".
+ */
 export async function requireUser(supabase: SupabaseClient) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Unauthorized");
+
+  const adminEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+  if (!adminEmail) {
+    throw new Error("ADMIN_EMAIL is not configured — refusing to authorize an admin write.");
+  }
+  if ((user.email ?? "").trim().toLowerCase() !== adminEmail) {
+    throw new Error("Unauthorized");
+  }
+  return user;
 }
 
 export function formDataToRecord(fd: FormData): Record<string, string> {

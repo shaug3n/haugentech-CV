@@ -80,17 +80,44 @@ create table posts (
   created_at timestamptz not null default now()
 );
 
--- RLS: public read, authenticated write --------------------------------------
+-- Owner identity --------------------------------------------------------------
+-- `to authenticated` on its own is NOT an authorization check. The anon key is
+-- embedded in the public client bundle, and Supabase projects ship with public
+-- email signup enabled, so any visitor could self-register and would then be
+-- "authenticated" — inheriting full write/delete on every table and on the
+-- public media bucket. Every write policy below therefore also requires the
+-- caller's JWT email claim to be the site owner's.
+--
+-- The owner's address is hardcoded in the function body on purpose:
+--   * this is a single-owner site and this migration is bespoke to this one
+--     deployment, so there is no second value to parameterise for;
+--   * a Postgres session GUC (`current_setting('app.admin_email')`) would have
+--     to be re-set on every pooled connection, which the hosted SQL editor and
+--     PgBouncer make unreliable;
+--   * putting it in a table would need its own RLS policy to avoid becoming
+--     the new hole.
+-- If the owner's email ever changes, re-run just this `create or replace` with
+-- the new address and update the `ADMIN_EMAIL` env var to match (see
+-- src/lib/admin/action-utils.ts — the app-level half of the same check).
+create or replace function public.is_site_owner() returns boolean
+language sql stable
+as $$
+  select coalesce(auth.jwt() ->> 'email', '') = 'sondre.haugen99@gmail.com'
+$$;
+
+-- RLS: public read, owner-only write ------------------------------------------
 do $$
 declare t text;
 begin
   foreach t in array array['profile','experience','education','skills','certifications','projects','posts']
   loop
     execute format('alter table %I enable row level security', t);
+    -- Public read is intentional: the whole point of the site is that these
+    -- rows are world-readable through the anon key.
     execute format('create policy "public read" on %I for select using (true)', t);
-    execute format('create policy "auth insert" on %I for insert to authenticated with check (true)', t);
-    execute format('create policy "auth update" on %I for update to authenticated using (true)', t);
-    execute format('create policy "auth delete" on %I for delete to authenticated using (true)', t);
+    execute format('create policy "owner insert" on %I for insert to authenticated with check (public.is_site_owner())', t);
+    execute format('create policy "owner update" on %I for update to authenticated using (public.is_site_owner()) with check (public.is_site_owner())', t);
+    execute format('create policy "owner delete" on %I for delete to authenticated using (public.is_site_owner())', t);
   end loop;
 end $$;
 
@@ -99,9 +126,10 @@ insert into storage.buckets (id, name, public) values ('media', 'media', true);
 
 create policy "media public read" on storage.objects
   for select using (bucket_id = 'media');
-create policy "media auth write" on storage.objects
-  for insert to authenticated with check (bucket_id = 'media');
-create policy "media auth update" on storage.objects
-  for update to authenticated using (bucket_id = 'media');
-create policy "media auth delete" on storage.objects
-  for delete to authenticated using (bucket_id = 'media');
+create policy "media owner write" on storage.objects
+  for insert to authenticated with check (bucket_id = 'media' and public.is_site_owner());
+create policy "media owner update" on storage.objects
+  for update to authenticated using (bucket_id = 'media' and public.is_site_owner())
+  with check (bucket_id = 'media' and public.is_site_owner());
+create policy "media owner delete" on storage.objects
+  for delete to authenticated using (bucket_id = 'media' and public.is_site_owner());
