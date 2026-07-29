@@ -1,0 +1,36 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-primary: #2563eb;
+  --color-primary-soft: #3b82f6;
+  --color-primary-faint: #dbeafe;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+section[id] {
+  scroll-margin-top: 5rem;
+}
+
+.prose-md h1, .prose-md h2, .prose-md h3 { font-weight: 600; margin: 1.25em 0 0.5em; }
+.prose-md h1 { font-size: 1.5rem; }
+.prose-md h2 { font-size: 1.25rem; }
+.prose-md h3 { font-size: 1.1rem; }
+.prose-md p, .prose-md ul, .prose-md ol { margin: 0.75em 0; line-height: 1.7; }
+.prose-md ul { list-style: disc; padding-left: 1.5em; }
+.prose-md ol { list-style: decimal; padding-left: 1.5em; }
+.prose-md a { color: var(--color-primary); text-decoration: underline; }
+.prose-md pre { border-radius: 0.5rem; padding: 1rem; overflow-x: auto; margin: 1em 0; font-size: 0.875rem; }
+.prose-md code { font-size: 0.9em; }
+.prose-md blockquote { border-left: 3px solid var(--color-primary); padding-left: 1em; opacity: 0.85; }
+.dark .prose-md pre.shiki, .dark .prose-md pre.shiki span { color: var(--shiki-dark) !important; background-color: var(--shiki-dark-bg) !important; }
