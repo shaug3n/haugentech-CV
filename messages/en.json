@@ -27,7 +27,10 @@
     "back": "All posts"
   },
   "footer": {
-    "contact": "Get in touch"
+    "contact": "Get in touch",
+    "email": "Email",
+    "linkedin": "LinkedIn",
+    "github": "GitHub"
   },
   "notFound": {
     "title": "Page not found",

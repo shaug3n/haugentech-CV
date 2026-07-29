@@ -27,7 +27,10 @@
     "back": "Alle innlegg"
   },
   "footer": {
-    "contact": "Ta kontakt"
+    "contact": "Ta kontakt",
+    "email": "E-post",
+    "linkedin": "LinkedIn",
+    "github": "GitHub"
   },
   "notFound": {
     "title": "Siden finnes ikke",
