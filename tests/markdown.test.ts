@@ -73,6 +73,15 @@ describe("renderMarkdown", () => {
       expect(html).toContain("overlay text");
     });
 
+    it("rejects non-colour values on allowed style properties", async () => {
+      const html = await renderMarkdown(
+        '<span style="color:url(https://evil.example/track.png)">smuggled value</span>'
+      );
+      expect(html).not.toContain("evil.example");
+      expect(html).not.toContain("url(");
+      expect(html).toContain("smuggled value");
+    });
+
     it("preserves ordinary links", async () => {
       const html = await renderMarkdown("[a link](https://example.com)");
       expect(html).toContain('href="https://example.com"');
