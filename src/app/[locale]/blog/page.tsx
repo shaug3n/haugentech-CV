@@ -29,7 +29,12 @@ export default async function BlogPage({ params }: { params: Promise<{ locale: s
         <div className="flex flex-col gap-4">
           {posts.map((post, i) => {
             const p = localize(post, locale);
-            const translated = postAvailableIn(post, locale);
+            const otherLocale: Locale = locale === "en" ? "no" : "en";
+            const contentLocale = postAvailableIn(post, locale)
+              ? null
+              : postAvailableIn(post, otherLocale)
+                ? otherLocale
+                : null;
             return (
               <FadeIn key={post.id} delay={Math.min(i * 0.05, 0.3)}>
                 <Link href={`/blog/${post.slug}`}
@@ -45,8 +50,10 @@ export default async function BlogPage({ params }: { params: Promise<{ locale: s
                         <time>{new Date(post.published_at).toLocaleDateString(locale === "no" ? "nb-NO" : "en-US", { dateStyle: "medium" })}</time>
                       )}
                       <span>{t("readingTime", { minutes: readingTimeMinutes(p.body_md ?? "") })}</span>
-                      {!translated && (
-                        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-primary">{t("untranslated")}</span>
+                      {contentLocale && (
+                        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-primary">
+                          {t(contentLocale === "en" ? "englishOnly" : "norwegianOnly")}
+                        </span>
                       )}
                     </div>
                   </div>

@@ -25,7 +25,8 @@
   "blog": {
     "title": "Blog",
     "readingTime": "{minutes} min read",
-    "untranslated": "English only",
+    "englishOnly": "English only",
+    "norwegianOnly": "Norwegian only",
     "empty": "No posts yet.",
     "back": "All posts"
   },

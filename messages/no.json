@@ -25,7 +25,8 @@
   "blog": {
     "title": "Blogg",
     "readingTime": "{minutes} min lesetid",
-    "untranslated": "Kun engelsk",
+    "englishOnly": "Kun engelsk",
+    "norwegianOnly": "Kun norsk",
     "empty": "Ingen innlegg ennå.",
     "back": "Alle innlegg"
   },

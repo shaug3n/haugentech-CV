@@ -32,7 +32,12 @@ export default async function PostPage({ params }: {
   if (!post) notFound();
 
   const p = localize(post, locale);
-  const translated = postAvailableIn(post, locale);
+  const otherLocale: Locale = locale === "en" ? "no" : "en";
+  const contentLocale = postAvailableIn(post, locale)
+    ? null
+    : postAvailableIn(post, otherLocale)
+      ? otherLocale
+      : null;
   if (!p.title || !p.body_md) notFound();
   const html = await renderMarkdown(p.body_md);
 
@@ -47,8 +52,10 @@ export default async function PostPage({ params }: {
             <time>{new Date(post.published_at).toLocaleDateString(locale === "no" ? "nb-NO" : "en-US", { dateStyle: "medium" })}</time>
           )}
           <span>{t("readingTime", { minutes: readingTimeMinutes(p.body_md) })}</span>
-          {!translated && (
-            <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">{t("untranslated")}</span>
+          {contentLocale && (
+            <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">
+              {t(contentLocale === "en" ? "englishOnly" : "norwegianOnly")}
+            </span>
           )}
         </div>
         {post.cover_image_url && (
