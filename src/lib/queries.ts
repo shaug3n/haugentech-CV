@@ -1,47 +1,79 @@
 import { supabaseStatic } from "@/lib/supabase/static";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   CertificationRow, EducationRow, ExperienceRow, PostRow, ProfileRow, ProjectRow, SkillRow,
 } from "@/lib/types";
 
-export async function getProfile(): Promise<ProfileRow | null> {
-  const { data } = await supabaseStatic().from("profile").select("*").eq("id", 1).maybeSingle();
-  return data;
+// Shared "degrade gracefully" guard: when Supabase isn't configured (or the
+// client can't be constructed), skip the network call entirely and hand back
+// the same shape a query with no results would produce. This keeps every
+// exported query function throw-free without repeating the null-check in
+// each of the eight bodies below.
+
+async function queryOne<T>(
+  run: (client: SupabaseClient) => PromiseLike<{ data: T | null }>,
+): Promise<T | null> {
+  const client = supabaseStatic();
+  if (!client) return null;
+  const { data } = await run(client);
+  return data ?? null;
 }
 
-export async function getExperience(): Promise<ExperienceRow[]> {
-  const { data } = await supabaseStatic().from("experience").select("*").order("sort");
+async function queryMany<T>(
+  run: (client: SupabaseClient) => PromiseLike<{ data: T[] | null }>,
+): Promise<T[]> {
+  const client = supabaseStatic();
+  if (!client) return [];
+  const { data } = await run(client);
   return data ?? [];
 }
 
-export async function getEducation(): Promise<EducationRow[]> {
-  const { data } = await supabaseStatic().from("education").select("*").order("sort");
-  return data ?? [];
+export function getProfile(): Promise<ProfileRow | null> {
+  return queryOne<ProfileRow>((client) =>
+    client.from("profile").select("*").eq("id", 1).maybeSingle(),
+  );
 }
 
-export async function getSkills(): Promise<SkillRow[]> {
-  const { data } = await supabaseStatic().from("skills").select("*").order("category").order("sort");
-  return data ?? [];
+export function getExperience(): Promise<ExperienceRow[]> {
+  return queryMany<ExperienceRow>((client) =>
+    client.from("experience").select("*").order("sort"),
+  );
 }
 
-export async function getCertifications(): Promise<CertificationRow[]> {
-  const { data } = await supabaseStatic().from("certifications").select("*").order("sort");
-  return data ?? [];
+export function getEducation(): Promise<EducationRow[]> {
+  return queryMany<EducationRow>((client) =>
+    client.from("education").select("*").order("sort"),
+  );
 }
 
-export async function getProjects(): Promise<ProjectRow[]> {
-  const { data } = await supabaseStatic().from("projects").select("*").order("sort");
-  return data ?? [];
+export function getSkills(): Promise<SkillRow[]> {
+  return queryMany<SkillRow>((client) =>
+    client.from("skills").select("*").order("category").order("sort"),
+  );
 }
 
-export async function getPublishedPosts(): Promise<PostRow[]> {
-  const { data } = await supabaseStatic()
-    .from("posts").select("*").eq("published", true)
-    .order("published_at", { ascending: false });
-  return data ?? [];
+export function getCertifications(): Promise<CertificationRow[]> {
+  return queryMany<CertificationRow>((client) =>
+    client.from("certifications").select("*").order("sort"),
+  );
 }
 
-export async function getPostBySlug(slug: string): Promise<PostRow | null> {
-  const { data } = await supabaseStatic()
-    .from("posts").select("*").eq("slug", slug).eq("published", true).maybeSingle();
-  return data;
+export function getProjects(): Promise<ProjectRow[]> {
+  return queryMany<ProjectRow>((client) =>
+    client.from("projects").select("*").order("sort"),
+  );
+}
+
+export function getPublishedPosts(): Promise<PostRow[]> {
+  return queryMany<PostRow>((client) =>
+    client
+      .from("posts").select("*").eq("published", true)
+      .order("published_at", { ascending: false }),
+  );
+}
+
+export function getPostBySlug(slug: string): Promise<PostRow | null> {
+  return queryOne<PostRow>((client) =>
+    client.from("posts").select("*").eq("slug", slug).eq("published", true).maybeSingle(),
+  );
 }

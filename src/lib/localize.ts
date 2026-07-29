@@ -5,17 +5,26 @@ export type Localized<T> = { [K in keyof T as StripLang<K>]: T[K] };
 
 const OTHER: Record<Locale, Locale> = { en: "no", no: "en" };
 
-export function localize<T extends Record<string, unknown>>(
-  row: T,
-  locale: Locale,
-): Localized<T> {
+export function localize<T extends object>(row: T, locale: Locale): Localized<T> {
+  const source = row as Record<string, unknown>;
   const out: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(row)) {
+  for (const [key, value] of Object.entries(source)) {
     if (key.endsWith("_en") || key.endsWith("_no")) {
       const base = key.slice(0, -3);
       const suffix = key.slice(-2) as Locale;
-      if (suffix !== locale) continue;
-      const fallback = row[`${base}_${OTHER[locale]}`];
+      const siblingKey = `${base}_${OTHER[suffix]}`;
+      const hasSibling = Object.prototype.hasOwnProperty.call(source, siblingKey);
+      if (suffix !== locale) {
+        // No matching-locale counterpart exists for this suffixed column: emit it
+        // under its base name anyway rather than silently dropping the data. When
+        // a sibling exists, the branch below (triggered while processing that
+        // sibling key) is responsible for producing `out[base]`.
+        if (!hasSibling) {
+          out[base] = value;
+        }
+        continue;
+      }
+      const fallback = hasSibling ? source[siblingKey] : undefined;
       out[base] = value === null || value === "" ? (fallback ?? value) : value;
     } else {
       out[key] = value;
