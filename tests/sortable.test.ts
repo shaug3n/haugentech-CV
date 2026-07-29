@@ -10,15 +10,25 @@ interface FakeOptions {
   selectError?: unknown;
   /** 1-based index of the `update()` call that should fail. */
   failUpdateNumber?: number;
+  /**
+   * 1-based index of the `update()` call that should succeed with no error
+   * but affect zero rows — simulating an RLS `USING` clause filtering the row
+   * out (e.g. `is_site_owner()` no longer matches the caller) rather than
+   * rejecting the write outright.
+   */
+  filterUpdateNumber?: number;
 }
 
 /**
  * Minimal stand-in for the slice of the Supabase client `sortable.ts` touches:
- *   from(t).select(cols).order(col)                  -> { data, error }
- *   from(t).select(cols).order(col, opts).limit(n)   -> { data, error }
- *   from(t).update(values).eq("id", id)              -> { error }
- * It records every update so tests can assert the exact sort values written,
- * and can inject an error into the select or into the Nth update.
+ *   from(t).select(cols).order(col)                        -> { data, error }
+ *   from(t).select(cols).order(col, opts).limit(n)         -> { data, error }
+ *   from(t).update(values).eq("id", id).select("id")       -> { data, error }
+ * It records every update that actually took effect so tests can assert the
+ * exact sort values written, and can inject an error into the select, an
+ * error into the Nth update, or a "succeeded but affected zero rows" response
+ * into the Nth update (an RLS `USING` clause filtering the row rather than
+ * rejecting the write).
  */
 function makeFakeClient(rows: Row[], options: FakeOptions = {}) {
   const updates: Update[] = [];
@@ -49,8 +59,15 @@ function makeFakeClient(rows: Row[], options: FakeOptions = {}) {
             eq(_column: string, id: string) {
               updateCount += 1;
               const shouldFail = options.failUpdateNumber === updateCount;
-              if (!shouldFail) updates.push({ id, sort: values.sort });
-              return Promise.resolve({ error: shouldFail ? { message: "rejected" } : null });
+              const shouldFilter = options.filterUpdateNumber === updateCount;
+              return {
+                select: () => {
+                  if (shouldFail) return Promise.resolve({ data: null, error: { message: "rejected" } });
+                  if (shouldFilter) return Promise.resolve({ data: [], error: null });
+                  updates.push({ id, sort: values.sort });
+                  return Promise.resolve({ data: [{ id }], error: null });
+                },
+              };
             },
           };
         },
@@ -125,6 +142,22 @@ describe("moveItem", () => {
   it("reports failure when the SECOND write is rejected", async () => {
     const { supabase, updates } = makeFakeClient(THREE_ROWS, { failUpdateNumber: 2 });
     expect(await moveItem(supabase, "experience", "b", "up")).toBe(false);
+    expect(updates).toEqual([{ id: "b", sort: 0 }]);
+  });
+
+  it("reports failure when the FIRST write succeeds but matches zero rows (RLS-filtered)", async () => {
+    // Regression guard for the RLS-filter gap: PostgREST reports
+    // `{ data: [], error: null }` when the USING clause hides the row from an
+    // UPDATE, not an error. `moveItem` must still treat that as a failure.
+    const { supabase, updates } = makeFakeClient(THREE_ROWS, { filterUpdateNumber: 1 });
+    expect(await moveItem(supabase, "experience", "b", "up")).toBe(false);
+    expect(updates).toEqual([]);
+  });
+
+  it("reports failure when the SECOND write succeeds but matches zero rows (RLS-filtered)", async () => {
+    const { supabase, updates } = makeFakeClient(THREE_ROWS, { filterUpdateNumber: 2 });
+    expect(await moveItem(supabase, "experience", "b", "up")).toBe(false);
+    // The first write did take effect — it just never got a chance to be undone.
     expect(updates).toEqual([{ id: "b", sort: 0 }]);
   });
 

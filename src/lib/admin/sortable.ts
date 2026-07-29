@@ -37,10 +37,16 @@ export async function moveItem(
   // requested direction and hand `b` the value `a` used to hold.
   const aSort = b.sort === a.sort ? a.sort + (direction === "up" ? -1 : 1) : b.sort;
 
-  const { error: firstError } = await supabase.from(table).update({ sort: aSort }).eq("id", a.id);
-  if (firstError) return false;
-  const { error: secondError } = await supabase.from(table).update({ sort: a.sort }).eq("id", b.id);
-  if (secondError) return false;
+  // `.select("id")` surfaces the affected rows so a write RLS filters out
+  // (rather than rejects) is caught: RLS's `USING` clause on UPDATE is a row
+  // filter, not a raising check, so a caller the owner-identity check no
+  // longer matches gets `error: null` with zero rows back, not an error.
+  const { data: firstData, error: firstError } = await supabase
+    .from(table).update({ sort: aSort }).eq("id", a.id).select("id");
+  if (firstError || !firstData?.length) return false;
+  const { data: secondData, error: secondError } = await supabase
+    .from(table).update({ sort: a.sort }).eq("id", b.id).select("id");
+  if (secondError || !secondData?.length) return false;
 
   return true;
 }

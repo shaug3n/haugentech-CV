@@ -99,8 +99,16 @@ create table posts (
 -- If the owner's email ever changes, re-run just this `create or replace` with
 -- the new address and update the `ADMIN_EMAIL` env var to match (see
 -- src/lib/admin/action-utils.ts — the app-level half of the same check).
+-- `set search_path = ''` closes the `function_search_path_mutable` linter
+-- finding: without a fixed search_path, a caller able to create objects in a
+-- schema earlier in their session's search_path could shadow an unqualified
+-- reference inside this function. The body only ever touches the
+-- schema-qualified `auth.jwt()` and plain SQL operators/literals, none of
+-- which resolve through the search path, so this changes nothing about how
+-- the function behaves.
 create or replace function public.is_site_owner() returns boolean
 language sql stable
+set search_path = ''
 as $$
   select coalesce(auth.jwt() ->> 'email', '') = 'sondre.haugen99@gmail.com'
 $$;

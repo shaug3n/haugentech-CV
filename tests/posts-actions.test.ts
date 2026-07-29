@@ -16,6 +16,13 @@ interface Injected {
   readError?: { message: string };
   /** Value of `published_at` on the existing row, for the stamping check. */
   existingPublishedAt?: string | null;
+  /**
+   * Simulates an RLS-filtered write: no error, but the row isn't visible to
+   * the query (the owner-identity check in `is_site_owner()` no longer
+   * matches). PostgREST reports this as `{ data: [], error: null }`.
+   */
+  updateFiltered?: boolean;
+  deleteFiltered?: boolean;
 }
 
 let injected: Injected = {};
@@ -51,10 +58,24 @@ const fakeClient = {
       },
       update(values: Record<string, unknown>) {
         lastUpdate = values;
-        return { eq: () => Promise.resolve({ error: injected.updateError ?? null }) };
+        return {
+          eq: () => ({
+            select: () => {
+              if (injected.updateError) return Promise.resolve({ data: null, error: injected.updateError });
+              return Promise.resolve({ data: injected.updateFiltered ? [] : [{ id: "post-1" }], error: null });
+            },
+          }),
+        };
       },
       delete() {
-        return { eq: () => Promise.resolve({ error: injected.deleteError ?? null }) };
+        return {
+          eq: () => ({
+            select: () => {
+              if (injected.deleteError) return Promise.resolve({ data: null, error: injected.deleteError });
+              return Promise.resolve({ data: injected.deleteFiltered ? [] : [{ id: "post-1" }], error: null });
+            },
+          }),
+        };
       },
     };
   },
@@ -157,6 +178,16 @@ describe("post actions", () => {
       expect(await destinationOf(() => updatePost(form({ ...complete, published: "on" }))))
         .toBe("/admin/posts/post-1?status=error");
     });
+
+    it("redirects to ?status=error when the update matches zero rows (RLS-filtered, not erroring)", async () => {
+      // RLS's USING clause is a row filter for UPDATE, not a raising check: a
+      // caller `is_site_owner()` no longer matches gets `error: null` with no
+      // rows back, not an error.
+      injected.updateFiltered = true;
+      expect(await destinationOf(() => updatePost(form(complete))))
+        .toBe("/admin/posts/post-1?status=error");
+      expect(revalidatePath).not.toHaveBeenCalled();
+    });
   });
 
   describe("deletePost", () => {
@@ -167,6 +198,13 @@ describe("post actions", () => {
 
     it("redirects to ?status=error when the delete is rejected (the I1 bug)", async () => {
       injected.deleteError = { message: "rejected by policy" };
+      expect(await destinationOf(() => deletePost(form({ id: "post-1" }))))
+        .toBe("/admin/posts?status=error");
+      expect(revalidatePath).not.toHaveBeenCalled();
+    });
+
+    it("redirects to ?status=error when the delete matches zero rows (RLS-filtered, not erroring)", async () => {
+      injected.deleteFiltered = true;
       expect(await destinationOf(() => deletePost(form({ id: "post-1" }))))
         .toBe("/admin/posts?status=error");
       expect(revalidatePath).not.toHaveBeenCalled();

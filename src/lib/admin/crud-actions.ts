@@ -107,8 +107,14 @@ export function createCrudActions(config: CrudConfig): SortableCrudActions {
     const values = parseOrFail(fd);
     await applyImage(supabase, fd, values);
 
-    const { error } = await supabase.from(table).update(values).eq("id", id);
-    if (error) redirect(errorPath);
+    // `.select("id")` makes PostgREST return the rows actually affected. RLS's
+    // `USING` clause is a row filter, not a raising check: if the owner check
+    // in `is_site_owner()` ever fails to match (e.g. `ADMIN_EMAIL` drifts from
+    // the hardcoded address in the migration), this update succeeds with
+    // `error: null` and zero rows touched. Without checking `data.length` that
+    // would still redirect to the success banner.
+    const { data, error } = await supabase.from(table).update(values).eq("id", id).select("id");
+    if (error || !data?.length) redirect(errorPath);
     revalidateSite();
     redirect(savedPath);
   });
@@ -117,8 +123,12 @@ export function createCrudActions(config: CrudConfig): SortableCrudActions {
     const supabase = await createSupabaseServer();
     await requireUser(supabase);
 
-    const { error } = await supabase.from(table).delete().eq("id", String(fd.get("id")));
-    if (error) redirect(errorPath);
+    // See the comment in `update` above: an RLS-filtered delete also returns
+    // `error: null` with no rows, so the affected-rows check is required here
+    // too, not just an `error` check.
+    const { data, error } = await supabase
+      .from(table).delete().eq("id", String(fd.get("id"))).select("id");
+    if (error || !data?.length) redirect(errorPath);
     revalidateSite();
     redirect(savedPath);
   });

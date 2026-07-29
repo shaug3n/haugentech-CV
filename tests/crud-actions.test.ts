@@ -23,6 +23,16 @@ interface Injected {
   selectError?: unknown;
   /** 1-based index of the update() call to fail — for the two writes in a move. */
   failUpdateNumber?: number;
+  /**
+   * Simulates an RLS-filtered write: no error, but the row simply isn't
+   * visible to the query (e.g. `is_site_owner()`'s hardcoded email drifted
+   * from `ADMIN_EMAIL`). PostgREST reports this as `{ data: [], error: null }`,
+   * not an error — the case `.select("id")` + a length check exists to catch.
+   */
+  updateFiltered?: boolean;
+  deleteFiltered?: boolean;
+  /** 1-based index of the update() call to report as RLS-filtered — for move. */
+  filterUpdateNumber?: number;
 }
 
 let rows: Row[] = [];
@@ -49,15 +59,24 @@ const fakeClient = {
       },
       insert: () => Promise.resolve({ error: injected.insertError ?? null }),
       update: () => ({
-        eq: () => {
-          updateCalls += 1;
-          const fail = injected.updateError
-            ?? (injected.failUpdateNumber === updateCalls ? { message: "rejected" } : null);
-          return Promise.resolve({ error: fail });
-        },
+        eq: () => ({
+          select: () => {
+            updateCalls += 1;
+            const fail = injected.updateError
+              ?? (injected.failUpdateNumber === updateCalls ? { message: "rejected" } : null);
+            if (fail) return Promise.resolve({ data: null, error: fail });
+            const filtered = injected.updateFiltered || injected.filterUpdateNumber === updateCalls;
+            return Promise.resolve({ data: filtered ? [] : [{ id: "row" }], error: null });
+          },
+        }),
       }),
       delete: () => ({
-        eq: () => Promise.resolve({ error: injected.deleteError ?? null }),
+        eq: () => ({
+          select: () => {
+            if (injected.deleteError) return Promise.resolve({ data: null, error: injected.deleteError });
+            return Promise.resolve({ data: injected.deleteFiltered ? [] : [{ id: "row" }], error: null });
+          },
+        }),
       }),
     };
   },
@@ -155,6 +174,17 @@ describe("createCrudActions error handling", () => {
         .toBe("/admin/experience?status=error");
       expect(revalidatePath).not.toHaveBeenCalled();
     });
+
+    it("redirects to ?status=error when the update matches zero rows (RLS-filtered, not erroring)", async () => {
+      // RLS's USING clause is a row filter for UPDATE, not a raising check: a
+      // caller `is_site_owner()` no longer matches gets `error: null` with no
+      // rows back, not an error. Without the affected-rows check this used to
+      // sail through to ?status=saved.
+      injected.updateFiltered = true;
+      expect(await destinationOf(() => actions.update(form({ ...VALID, id: "a" }))))
+        .toBe("/admin/experience?status=error");
+      expect(revalidatePath).not.toHaveBeenCalled();
+    });
   });
 
   describe("remove", () => {
@@ -167,6 +197,16 @@ describe("createCrudActions error handling", () => {
       // This is the exact regression: the old hand-written delete ignored
       // `error` and always redirected to ?status=saved.
       injected.deleteError = { message: "rejected by policy" };
+      expect(await destinationOf(() => actions.remove(form({ id: "a" }))))
+        .toBe("/admin/experience?status=error");
+      expect(revalidatePath).not.toHaveBeenCalled();
+    });
+
+    it("redirects to ?status=error when the delete matches zero rows (RLS-filtered, not erroring)", async () => {
+      // Same gap as the update case: RLS filters the row out of the DELETE's
+      // visibility instead of raising, so PostgREST reports success with no
+      // rows deleted.
+      injected.deleteFiltered = true;
       expect(await destinationOf(() => actions.remove(form({ id: "a" }))))
         .toBe("/admin/experience?status=error");
       expect(revalidatePath).not.toHaveBeenCalled();
@@ -197,6 +237,20 @@ describe("createCrudActions error handling", () => {
     it("redirects to ?status=error when the row to move no longer exists", async () => {
       expect(await destinationOf(() => actions.move(form({ id: "gone", direction: "up" }))))
         .toBe("/admin/experience?status=error");
+    });
+
+    it("redirects to ?status=error when the FIRST write matches zero rows (RLS-filtered)", async () => {
+      injected.filterUpdateNumber = 1;
+      expect(await destinationOf(() => actions.move(form({ id: "b", direction: "up" }))))
+        .toBe("/admin/experience?status=error");
+      expect(revalidatePath).not.toHaveBeenCalled();
+    });
+
+    it("redirects to ?status=error when the SECOND write matches zero rows (RLS-filtered)", async () => {
+      injected.filterUpdateNumber = 2;
+      expect(await destinationOf(() => actions.move(form({ id: "b", direction: "up" }))))
+        .toBe("/admin/experience?status=error");
+      expect(revalidatePath).not.toHaveBeenCalled();
     });
   });
 

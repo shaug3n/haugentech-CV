@@ -57,8 +57,13 @@ export const updatePost = withAdminAction(`${PATH}?status=error`, async (fd: For
     if (!existing?.published_at) update.published_at = new Date().toISOString();
   }
 
-  const { error } = await supabase.from("posts").update(update).eq("id", id);
+  // `.select("id")` surfaces the affected rows: RLS's `USING` clause on UPDATE
+  // is a row filter, not a raising check, so a write the owner-identity check
+  // no longer matches comes back as `error: null` with zero rows, not an
+  // error. Checking `data.length` catches that where `error` alone would not.
+  const { data, error } = await supabase.from("posts").update(update).eq("id", id).select("id");
   if (error) redirect(`${PATH}/${id}?status=${statusFor(error)}`);
+  if (!data?.length) redirect(`${PATH}/${id}?status=error`);
   revalidateSite();
   redirect(`${PATH}/${id}?status=saved`);
 });
@@ -66,8 +71,13 @@ export const updatePost = withAdminAction(`${PATH}?status=error`, async (fd: For
 export const deletePost = withAdminAction(`${PATH}?status=error`, async (fd: FormData) => {
   const supabase = await createSupabaseServer();
   await requireUser(supabase);
-  const { error } = await supabase.from("posts").delete().eq("id", String(fd.get("id")));
+  // See the comment in `updatePost` above: an RLS-filtered delete also
+  // returns `error: null` with no rows, so the affected-rows check is
+  // required here too, not just an `error` check.
+  const { data, error } = await supabase
+    .from("posts").delete().eq("id", String(fd.get("id"))).select("id");
   if (error) redirect(`${PATH}?status=error`);
+  if (!data?.length) redirect(`${PATH}?status=error`);
   revalidateSite();
   redirect(`${PATH}?status=saved`);
 });
