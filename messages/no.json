@@ -1,0 +1,44 @@
+{
+  "hero": {
+    "greeting": "Hei! 👋"
+  },
+  "nav": {
+    "about": "Om meg",
+    "cv": "CV",
+    "certifications": "Sertifiseringer",
+    "projects": "Prosjekter",
+    "blog": "Blogg",
+    "toggleTheme": "Bytt tema",
+    "menu": "Meny"
+  },
+  "sections": {
+    "about": "Om meg",
+    "experience": "Erfaring",
+    "education": "Utdanning",
+    "skills": "Ferdigheter",
+    "certifications": "Sertifiseringer",
+    "projects": "Prosjekter",
+    "viewCredential": "Se sertifikat",
+    "sourceCode": "Kildekode",
+    "liveSite": "Live"
+  },
+  "blog": {
+    "title": "Blogg",
+    "readingTime": "{minutes} min lesetid",
+    "englishOnly": "Kun engelsk",
+    "norwegianOnly": "Kun norsk",
+    "empty": "Ingen innlegg ennå.",
+    "back": "Alle innlegg"
+  },
+  "footer": {
+    "contact": "Ta kontakt",
+    "email": "E-post",
+    "linkedin": "LinkedIn",
+    "github": "GitHub"
+  },
+  "notFound": {
+    "title": "Siden finnes ikke",
+    "body": "Denne siden eksisterer ikke.",
+    "home": "Til forsiden"
+  }
+}

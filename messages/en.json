@@ -1,0 +1,44 @@
+{
+  "hero": {
+    "greeting": "Hi! 👋"
+  },
+  "nav": {
+    "about": "About",
+    "cv": "CV",
+    "certifications": "Certifications",
+    "projects": "Projects",
+    "blog": "Blog",
+    "toggleTheme": "Toggle theme",
+    "menu": "Menu"
+  },
+  "sections": {
+    "about": "About me",
+    "experience": "Experience",
+    "education": "Education",
+    "skills": "Skills",
+    "certifications": "Certifications",
+    "projects": "Projects",
+    "viewCredential": "View credential",
+    "sourceCode": "Source",
+    "liveSite": "Live"
+  },
+  "blog": {
+    "title": "Blog",
+    "readingTime": "{minutes} min read",
+    "englishOnly": "English only",
+    "norwegianOnly": "Norwegian only",
+    "empty": "No posts yet.",
+    "back": "All posts"
+  },
+  "footer": {
+    "contact": "Get in touch",
+    "email": "Email",
+    "linkedin": "LinkedIn",
+    "github": "GitHub"
+  },
+  "notFound": {
+    "title": "Page not found",
+    "body": "That page does not exist.",
+    "home": "Back home"
+  }
+}
