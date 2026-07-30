@@ -79,6 +79,7 @@ export const certificationSchema = z.object({
   issuer: text,
   date: text,
   credential_url: optionalUrl,
+  pinned: checkbox,
 });
 
 export const projectSchema = z.object({

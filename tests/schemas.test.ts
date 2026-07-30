@@ -21,6 +21,22 @@ describe("certificationSchema", () => {
   });
 });
 
+describe("certificationSchema pinned flag", () => {
+  it("pinned present means true", () => {
+    const out = certificationSchema.parse({
+      name: "AZ-900", issuer: "Microsoft", date: "2025-03", credential_url: "", pinned: "on",
+    });
+    expect(out.pinned).toBe(true);
+  });
+
+  it("pinned absent means false", () => {
+    const out = certificationSchema.parse({
+      name: "AZ-900", issuer: "Microsoft", date: "2025-03", credential_url: "",
+    });
+    expect(out.pinned).toBe(false);
+  });
+});
+
 describe("projectSchema", () => {
   it("splits tech_tags on comma and trims", () => {
     const out = projectSchema.parse({
