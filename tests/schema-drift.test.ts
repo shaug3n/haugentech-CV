@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import type {
   CertificationRow, EducationRow, ExperienceRow, PostRow, ProfileRow, ProjectRow, SkillRow,
@@ -7,7 +7,7 @@ import type {
 
 /**
  * Drift guard: the `*Row` interfaces in src/lib/types.ts are hand-written
- * against supabase/migrations/0001_init.sql. Nothing else connects them, so
+ * against every file in supabase/migrations/. Nothing else connects them, so
  * renaming a column in the SQL (or adding one) leaves the TypeScript quietly
  * describing a table that no longer exists — and `select("*")` casts straight to
  * the interface, so the compiler never notices.
@@ -19,25 +19,30 @@ import type {
  *     column declared mid-line alongside another would be missed.
  *   * Column TYPES are not checked, only names — this catches a rename or a
  *     removal, not `text` becoming `int`.
- *   * `alter table ... add column` in a future migration would need handling
- *     here (there is only one migration today).
+ *   * `alter table <t> add column <name> ...;` IS read, from every migration in
+ *     supabase/migrations (filename order). Other DDL — `drop column`, `rename
+ *     column`, `add column if not exists`, multi-column `add` — is not.
  * If the SQL is ever reformatted such that the extraction breaks, the sanity
  * assertions at the bottom fail loudly rather than the test passing vacuously.
  */
 
-const SQL = readFileSync(
-  path.resolve(__dirname, "../supabase/migrations/0001_init.sql"),
-  "utf8",
-);
+const MIGRATIONS_DIR = path.resolve(__dirname, "../supabase/migrations");
+
+/** Every migration, concatenated in filename order (0001, 0002, ...). */
+const SQL = readdirSync(MIGRATIONS_DIR)
+  .filter((f) => f.endsWith(".sql"))
+  .sort()
+  .map((f) => readFileSync(path.join(MIGRATIONS_DIR, f), "utf8"))
+  .join("\n");
 
 /** Line-leading keywords that introduce a table constraint, not a column. */
 const CONSTRAINT_KEYWORDS = new Set([
   "primary", "unique", "check", "constraint", "foreign", "exclude",
 ]);
 
-function columnsOf(table: string): string[] {
+function createdColumnsOf(table: string): string[] {
   const match = new RegExp(`create table ${table} \\(([\\s\\S]*?)\\n\\);`, "i").exec(SQL);
-  if (!match) throw new Error(`no "create table ${table} (...)" block found in the migration`);
+  if (!match) throw new Error(`no "create table ${table} (...)" block found in the migrations`);
 
   return match[1]
     .split("\n")
@@ -45,6 +50,23 @@ function columnsOf(table: string): string[] {
     .filter((line) => line !== "" && !line.startsWith("--"))
     .map((line) => line.split(/[\s(]/)[0].toLowerCase())
     .filter((name) => name !== "" && !CONSTRAINT_KEYWORDS.has(name));
+}
+
+/**
+ * Columns introduced by a later migration via
+ * `alter table <table> add column <name> ...;`. Only this one form is
+ * recognised — `add column if not exists` and multi-column `add` clauses are
+ * not, matching this file's deliberately-not-a-SQL-parser scope.
+ */
+function addedColumnsOf(table: string): string[] {
+  const re = new RegExp(`alter table ${table} add column (\\w+)`, "gi");
+  const names: string[] = [];
+  for (const m of SQL.matchAll(re)) names.push(m[1].toLowerCase());
+  return names;
+}
+
+function columnsOf(table: string): string[] {
+  return [...createdColumnsOf(table), ...addedColumnsOf(table)];
 }
 
 // One fully-populated sample per table, each annotated with its interface. The
@@ -64,7 +86,8 @@ const educationRow: EducationRow = {
 };
 const skillRow: SkillRow = { id: "", name: "", category: "", sort: 0 };
 const certificationRow: CertificationRow = {
-  id: "", name: "", issuer: "", date: "", badge_image_url: null, credential_url: null, sort: 0,
+  id: "", name: "", issuer: "", date: "", badge_image_url: null, credential_url: null,
+  pinned: false, sort: 0,
 };
 const projectRow: ProjectRow = {
   id: "", title_en: "", title_no: "", summary_en: "", summary_no: "",
@@ -112,5 +135,13 @@ describe("migration columns vs src/lib/types.ts row interfaces", () => {
     }
     expect(columnsOf("posts")).toContain("slug");
     expect(columnsOf("profile")).toContain("headline_no");
+  });
+
+  it("picks up columns added by a later migration, not just create-table blocks", () => {
+    // `pinned` arrives in 0002 via `alter table ... add column`. If the alter
+    // extraction breaks, this fails here instead of the certifications drift
+    // check reporting a phantom mismatch.
+    expect(columnsOf("certifications")).toContain("pinned");
+    expect(createdColumnsOf("certifications")).not.toContain("pinned");
   });
 });

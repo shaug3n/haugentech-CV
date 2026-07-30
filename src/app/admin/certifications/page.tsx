@@ -15,6 +15,10 @@ function CertFields({ row }: { row?: CertificationRow }) {
         <TextField name="issuer" label="Issuer" defaultValue={row?.issuer} />
         <TextField name="date" label="Date (e.g. 2025-03)" defaultValue={row?.date} />
         <TextField name="credential_url" label="Credential URL" defaultValue={row?.credential_url} />
+        <label className="flex items-end gap-2 pb-2 text-sm">
+          <input type="checkbox" name="pinned" defaultChecked={row?.pinned} />
+          <span className="font-medium">Pinned (shown above About)</span>
+        </label>
       </div>
       <label className="block text-sm">
         <span className="font-medium">Badge image</span>

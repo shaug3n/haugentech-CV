@@ -48,6 +48,7 @@ export interface CertificationRow {
   date: string;
   badge_image_url: string | null;
   credential_url: string | null;
+  pinned: boolean;
   sort: number;
 }
 
