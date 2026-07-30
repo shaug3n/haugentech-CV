@@ -12,7 +12,8 @@ Bilingual (EN/NO) portfolio + blog. Next.js 15, Tailwind 4, Supabase, deployed o
 ## Supabase setup (once)
 
 1. Create a project at supabase.com (free tier).
-2. SQL Editor → run `supabase/migrations/0001_init.sql`.
+2. SQL Editor → run every file in `supabase/migrations/` in filename order,
+   starting with `0001_init.sql`.
    **This migration is not idempotent — run it exactly once, on a fresh project.**
    It seeds the single `profile` row, creates the `media` storage bucket, and
    creates named policies; a second run fails on duplicate keys and duplicate
@@ -46,6 +47,21 @@ not grant to the SQL editor role (you get `must be owner of table objects` or
   logged in as the project owner (not via a restricted API key / `psql` role) —
   the owner role does have the required privilege on most projects.
 
+### Already set up? Applying later migrations
+
+`0001_init.sql` is the initial schema. Anything numbered above it is a change
+made after the first deploy, and an existing project needs those applied by
+hand — the app has no migration runner.
+
+Run any migration you have not run yet in SQL Editor, in filename order. Each
+one is small and states at the top what it does. Skipping one leaves the
+deployed code referring to a column the database does not have, which surfaces
+as content failing to load rather than as a clear error.
+
+| Migration | What it adds |
+|---|---|
+| `0002_pin_certifications.sql` | `certifications.pinned` — lets you pin certs to the badge row above About |
+
 ## Vercel setup (once)
 
 1. Import the GitHub repo in Vercel.
@@ -77,6 +93,8 @@ Notes on the editors:
   `http://` or `https://`.
 * Reordering, deleting and saving all report failures with a red banner. A green
   "Saved." means the database accepted the write.
+* Ticking **Pinned** on a certification adds it to the compact badge row above
+  the About section. It stays in the full certifications grid as well.
 
 ## Tests and linting
 
