@@ -34,3 +34,23 @@ section[id] {
 .prose-md code { font-size: 0.9em; }
 .prose-md blockquote { border-left: 3px solid var(--color-primary); padding-left: 1em; opacity: 0.85; }
 .dark .prose-md pre.shiki, .dark .prose-md pre.shiki span { color: var(--shiki-dark) !important; background-color: var(--shiki-dark-bg) !important; }
+
+.site-bg {
+  background: linear-gradient(120deg, #fafafa, #eff4ff, #fafafa, #eff4ff);
+  background-size: 300% 300%;
+  animation: bg-drift 14s ease-in-out infinite;
+}
+
+.dark .site-bg {
+  background: linear-gradient(120deg, #171717, #0d1220, #171717, #101a2e);
+  background-size: 300% 300%;
+}
+
+@keyframes bg-drift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .site-bg { animation: none; }
+}
