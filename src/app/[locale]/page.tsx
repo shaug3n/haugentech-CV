@@ -5,6 +5,7 @@ import { Hero } from "@/components/sections/Hero";
 import { About } from "@/components/sections/About";
 import { CV } from "@/components/sections/CV";
 import { Certifications } from "@/components/sections/Certifications";
+import { PinnedCertifications } from "@/components/sections/PinnedCertifications";
 import { Projects } from "@/components/sections/Projects";
 import { getProfile, getExperience, getEducation, getSkills, getCertifications, getProjects } from "@/lib/queries";
 import type { Locale } from "@/lib/types";
@@ -23,6 +24,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
       <Navbar />
       <main>
         {profile && <Hero profile={profile} locale={locale} />}
+        <PinnedCertifications certs={certifications} />
         {profile && <About profile={profile} locale={locale} />}
         <CV experience={experience} education={education} skills={skills} locale={locale} />
         <Certifications certs={certifications} />
