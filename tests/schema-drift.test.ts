@@ -7,7 +7,7 @@ import type {
 
 /**
  * Drift guard: the `*Row` interfaces in src/lib/types.ts are hand-written
- * against supabase/migrations/0001_init.sql. Nothing else connects them, so
+ * against every file in supabase/migrations/. Nothing else connects them, so
  * renaming a column in the SQL (or adding one) leaves the TypeScript quietly
  * describing a table that no longer exists — and `select("*")` casts straight to
  * the interface, so the compiler never notices.

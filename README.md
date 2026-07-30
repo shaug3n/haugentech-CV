@@ -14,7 +14,7 @@ Bilingual (EN/NO) portfolio + blog. Next.js 15, Tailwind 4, Supabase, deployed o
 1. Create a project at supabase.com (free tier).
 2. SQL Editor → run every file in `supabase/migrations/` in filename order,
    starting with `0001_init.sql`.
-   **This migration is not idempotent — run it exactly once, on a fresh project.**
+   **`0001_init.sql` is not idempotent — run it exactly once, on a fresh project.**
    It seeds the single `profile` row, creates the `media` storage bucket, and
    creates named policies; a second run fails on duplicate keys and duplicate
    policy names, and may leave the schema half-applied. To re-run it, reset the
@@ -55,8 +55,12 @@ hand — the app has no migration runner.
 
 Run any migration you have not run yet in SQL Editor, in filename order. Each
 one is small and states at the top what it does. Skipping one leaves the
-deployed code referring to a column the database does not have, which surfaces
-as content failing to load rather than as a clear error.
+deployed code writing a column the database does not have. It usually does
+not break the public site — reads use `select("*")`, so a missing column is
+simply absent from the result, and the feature depending on it just doesn't
+appear. It breaks the *editor* instead: saving that table in `/admin` fails
+with the red error banner. If a save won't stick and the change looks
+otherwise correct, check whether a migration is missing before anything else.
 
 | Migration | What it adds |
 |---|---|
