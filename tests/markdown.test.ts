@@ -96,6 +96,15 @@ describe("renderMarkdown", () => {
       expect(html).toContain('alt="alt text"');
     });
 
+    it("preserves uploaded inline images", async () => {
+      const url =
+        "https://project.supabase.co/storage/v1/object/public/media/posts/inline/image.webp";
+      const html = await renderMarkdown(`![Inline](${url})`);
+      expect(html).toContain("<img");
+      expect(html).toContain(url);
+      expect(html).toContain('alt="Inline"');
+    });
+
     it("preserves gfm tables", async () => {
       const html = await renderMarkdown("| a | b |\n| - | - |\n| 1 | 2 |");
       expect(html).toContain("<table");
