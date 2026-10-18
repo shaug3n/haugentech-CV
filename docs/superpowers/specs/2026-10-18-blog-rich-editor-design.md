@@ -113,7 +113,7 @@ Path: `src/app/admin/posts/actions.ts` (or a sibling `image-actions.ts`).
 
 ### Config
 
-`next.config.ts`: add `experimental.serverActions.bodySizeLimit: "4mb"` (or
+`next.config.ts`: add `experimental.serverActions.bodySizeLimit: "4.5mb"` (a 4 MB file plus multipart overhead; within the Vercel 4.5 MB cap) (or
 the stable equivalent for the installed Next.js 15 version).
 
 ## Data flow
