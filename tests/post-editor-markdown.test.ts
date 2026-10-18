@@ -78,6 +78,51 @@ describe("post editor Markdown codec", () => {
     expect(getInitialPostEditorState(markdown).mode).toBe("rich");
   });
 
+  it("does not normalize inline or nested code while normalizing blocks", () => {
+    const source = [
+      "Inline `| a    | b  |` and `![x](y)` stay literal.",
+      "",
+      "> ```text",
+      "> | a    | b  |",
+      "> ![x](y)",
+      ">",
+      ">",
+      ">",
+      "> ```",
+      "",
+      "- ```text",
+      "  | a    | b  |",
+      "  ![x](y)",
+      "",
+      "",
+      "",
+      "  ```",
+      "",
+      "| a | b |",
+      "| --- | --- |",
+      "| 1 | 2 |",
+    ].join("\n");
+
+    const serialized = serializePostMarkdown(parsePostMarkdown(source));
+
+    expect(serialized).toContain("`| a    | b  |`");
+    expect(serialized).toContain("`![x](y)`");
+    expect(serialized).toContain("> | a    | b  |");
+    expect(serialized).toContain("> ![x](y)");
+    expect(serialized).toContain("| a    | b  |\n![x](y)");
+    expect(serialized).toMatch(/\n(?:> ?\n){3}> ```/);
+  });
+
+  it("serializes tables without padding and keeps separators between paragraphs", () => {
+    const source =
+      "# Hello world\n\nSome **bold** text.\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\nAfter table.\n";
+
+    const serialized = serializePostMarkdown(parsePostMarkdown(source));
+
+    expect(serialized).toContain("| a | b |\n| --- | --- |\n| 1 | 2 |");
+    expect(serialized).not.toContain("\n\n\n");
+  });
+
   it("removes serializer-only blank lines around tables", () => {
     const markdown =
       "# Hello world\n\nSome **bold** text.\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\nAfter table.\n\n| Name | Longer header |\n| --- | --- |\n| x | y |\n";

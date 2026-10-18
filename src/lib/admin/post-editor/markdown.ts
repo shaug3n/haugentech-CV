@@ -1,6 +1,6 @@
 import { Editor, type Extensions, type JSONContent } from "@tiptap/core";
 import { Image } from "@tiptap/extension-image";
-import { TableKit } from "@tiptap/extension-table";
+import { Table, TableCell, TableHeader, TableRow } from "@tiptap/extension-table";
 import { Markdown, MarkdownManager } from "@tiptap/markdown";
 import { Placeholder } from "@tiptap/extensions";
 import { StarterKit } from "@tiptap/starter-kit";
@@ -8,9 +8,55 @@ import { StarterKit } from "@tiptap/starter-kit";
 export function createPostEditorExtensions(): Extensions {
   return [
     StarterKit.configure({ link: { openOnClick: false } }),
-    Image.configure({ inline: false, allowBase64: false }),
+    Image.extend({
+      renderMarkdown(node) {
+        const alt = typeof node.attrs?.alt === "string" ? node.attrs.alt : "";
+        const src = typeof node.attrs?.src === "string" ? node.attrs.src : "";
+        const title = typeof node.attrs?.title === "string" ? ` "${node.attrs.title}"` : "";
+        return `![${alt.replace(/([\[\]])/g, "\\$1")}](${src}${title})`;
+      },
+    }).configure({ inline: false, allowBase64: false }),
     Placeholder.configure({ placeholder: "Write something…" }),
-    TableKit,
+    Table.extend({
+      renderMarkdown(node, helpers) {
+        const rows = node.content ?? [];
+        const columns = Math.max(
+          0,
+          ...rows.map((row) => row.content?.length ?? 0),
+        );
+        if (!columns) return "";
+
+        const cells = rows.map((row) =>
+          Array.from({ length: columns }, (_, index) => {
+            const cell = row.content?.[index];
+            const text = cell
+              ? helpers.renderChildren(cell.content ?? []).trim()
+              : "";
+            return text.replace(/(^|[^\\])\|/g, "$1\\|");
+          }),
+        );
+        const header = rows[0]?.content?.some(
+          (cell) => cell.type === "tableHeader",
+        );
+        const alignments = Array.from({ length: columns }, (_, index) => {
+          const alignment = rows[0]?.content?.[index]?.attrs?.textAlign ??
+            rows[0]?.content?.[index]?.attrs?.align;
+          if (alignment === "left") return ":---";
+          if (alignment === "right") return "---:";
+          if (alignment === "center") return ":---:";
+          return "---";
+        });
+        const outputRows = [
+          ...(header ? [cells[0]] : []),
+          alignments,
+          ...cells.slice(header ? 1 : 0),
+        ];
+        return outputRows.map((row) => `| ${row.join(" | ")} |`).join("\n");
+      },
+    }),
+    TableRow,
+    TableHeader,
+    TableCell,
     Markdown,
   ];
 }
@@ -56,25 +102,7 @@ export function getPostEditorMarkdown(editor: Editor): string {
 }
 
 function serializeEditorMarkdown(editor: Editor): string {
-  return normalizeSerializedMarkdown(editor.getMarkdown());
-}
-
-function normalizeSerializedMarkdown(markdown: string): string {
-  return mapMarkdownOutsideCodeFences(markdown, (outside, isStart) => {
-    let normalized = outside
-      .replace(
-        /!\[([\s\S]*?)\]\(([^)]*)\)/g,
-        (_, alt: string, destination: string) =>
-          `![${alt.replace(/(?<!\\)([\[\]])/g, "\\$1")}](${destination})`,
-      )
-      .replace(/(^|\|) ([^|\n]*?) {2,}(?=\|)/g, "$1 $2 ")
-      .replace(/\n{3,}/g, "\n\n");
-
-    if (isStart) {
-      normalized = normalized.replace(/^(?:[ \t]*\n)+/, "");
-    }
-    return normalized;
-  });
+  return editor.getMarkdown();
 }
 
 function normalizeMarkdownForComparison(markdown: string): string {
@@ -165,9 +193,7 @@ export function getInitialPostEditorState(
   });
   const parsed = markdownManager.parse(markdown);
   normalizeImageAltText(parsed);
-  const serialized = normalizeSerializedMarkdown(
-    markdownManager.serialize(parsed),
-  );
+  const serialized = markdownManager.serialize(parsed);
   if (
     normalizeMarkdownForComparison(serialized) ===
     normalizeMarkdownForComparison(markdown)
