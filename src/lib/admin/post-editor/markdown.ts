@@ -27,11 +27,13 @@ export function createPostEditorExtensions(): Extensions {
               )
             : "- ";
         const [first, ...children] = node.content ?? [];
-        // Marked consumes the ordered marker's delimiter column while parsing
-        // continuation blocks, so their source indentation is one column narrower.
-        const contentOffset = prefix.length - (ordered ? 1 : 0);
+        const contentOffset = prefix.length;
         const indent = " ".repeat(contentOffset);
         const listIndent = " ".repeat(prefix.length);
+        // Keep fenced-code body indentation separate from block continuation indentation.
+        const codeContentIndent = " ".repeat(
+          prefix.length - (ordered ? 1 : 0),
+        );
         const indentBlock = (content: string) =>
           content
             .split("\n")
@@ -43,7 +45,9 @@ export function createPostEditorExtensions(): Extensions {
           output += firstRendered;
         } else if (first?.type === "codeBlock") {
           const [opening, ...lines] = firstRendered.split("\n");
-          output += `${opening}\n${lines.map((line) => `${indent}${line}`).join("\n")}`;
+          output += `${opening}\n${lines
+            .map((line) => `${codeContentIndent}${line}`)
+            .join("\n")}`;
         } else if (first) {
           output += `\n${indentBlock(firstRendered)}`;
         }
@@ -58,7 +62,7 @@ export function createPostEditorExtensions(): Extensions {
               ? lines
                   .map((line, lineIndex) => {
                     const isFence = lineIndex === 0 || lineIndex === lines.length - 1;
-                    return `${" ".repeat(isFence ? prefix.length : contentOffset)}${line}`;
+                    return `${isFence ? listIndent : codeContentIndent}${line}`;
                   })
                   .join("\n")
               : child.type === "bulletList" || child.type === "orderedList"

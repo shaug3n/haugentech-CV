@@ -36,6 +36,121 @@ describe("post editor Markdown codec", () => {
     }
   });
 
+  it("keeps ordered-list continuation paragraphs inside the public list item", async () => {
+    const markdown = "1. first\n\n   second paragraph\n2. last";
+    const serialized = serializePostMarkdown(parsePostMarkdown(markdown));
+    const rendered = new DOMParser().parseFromString(
+      await renderMarkdown(serialized),
+      "text/html",
+    );
+    const list = rendered.querySelector("ol");
+    const items = list?.querySelectorAll(":scope > li");
+
+    expect(rendered.querySelectorAll("ol")).toHaveLength(1);
+    expect(items).toHaveLength(2);
+    expect(items?.[0].querySelectorAll(":scope > p")).toHaveLength(2);
+    expect(items?.[0].textContent).toContain("second paragraph");
+    expect(items?.[1].textContent).toContain("last");
+    expect(parsePostMarkdown(serialized)).toEqual(parsePostMarkdown(markdown));
+  });
+
+  it("keeps headings inside ordered-list items in the public renderer", async () => {
+    const markdown = "1. first\n\n   ## Inside\n2. last";
+    const serialized = serializePostMarkdown(parsePostMarkdown(markdown));
+    const rendered = new DOMParser().parseFromString(
+      await renderMarkdown(serialized),
+      "text/html",
+    );
+    const items = rendered.querySelectorAll("ol > li");
+
+    expect(rendered.querySelectorAll("ol")).toHaveLength(1);
+    expect(items).toHaveLength(2);
+    expect(items[0].querySelector(":scope > h2")?.textContent).toBe("Inside");
+    expect(items[1].textContent).toContain("last");
+    expect(parsePostMarkdown(serialized)).toEqual(parsePostMarkdown(markdown));
+  });
+
+  it.each([
+    [
+      "multi-digit ordered markers",
+      "10. first\n\n    second paragraph\n11. last",
+      "ol > li",
+      undefined,
+    ],
+    [
+      "bullet list continuation paragraphs",
+      "- first\n\n  second paragraph\n\n  ```text\n  bullet code\n  ```\n- last",
+      "ul > li",
+      "bullet code",
+    ],
+    [
+      "ordered lists nested in bullets",
+      "- outer first\n\n  outer continuation\n\n  1. ordered first\n\n     ordered continuation\n  2. ordered last",
+      "ul > li > ol > li",
+      undefined,
+    ],
+    [
+      "bullet lists nested in ordered lists",
+      "1. outer first\n\n   outer continuation\n\n   - bullet first\n\n     bullet continuation\n\n     ```text\n     bullet code\n     ```\n   - bullet last\n2. outer last",
+      "ol > li > ul > li",
+      "bullet code",
+    ],
+  ])(
+    "round-trips %s continuation structure",
+    async (_name, markdown, itemSelector, codeText) => {
+      const original = parsePostMarkdown(markdown);
+      const serialized = serializePostMarkdown(original);
+      const reparsed = parsePostMarkdown(serialized);
+      const rendered = new DOMParser().parseFromString(
+        await renderMarkdown(serialized),
+        "text/html",
+      );
+      const getCode = (document: typeof original) => {
+        const blocks: string[] = [];
+        const visit = (node: typeof original) => {
+          if (node.type === "codeBlock") {
+            blocks.push(
+              (node.content ?? []).map((child) => child.text ?? "").join(""),
+            );
+          }
+          node.content?.forEach(visit);
+        };
+        visit(document);
+        return blocks;
+      };
+
+      expect(reparsed).toEqual(original);
+      expect(getCode(reparsed)).toEqual(getCode(original));
+      expect(rendered.querySelector(itemSelector)).not.toBeNull();
+      if (codeText) {
+        expect(rendered.querySelectorAll("pre code")).toHaveLength(1);
+        expect(rendered.querySelector("pre code")?.textContent).toContain(
+          codeText,
+        );
+      } else {
+        expect(rendered.querySelectorAll("pre code")).toHaveLength(0);
+      }
+    },
+  );
+
+  it("preserves fenced code in multi-digit ordered-list items", () => {
+    const markdown = "10. first\n\n    ```text\n    code\n    ```\n11. last";
+    const original = parsePostMarkdown(markdown);
+    const serialized = serializePostMarkdown(original);
+    const reparsed = parsePostMarkdown(serialized);
+    const codeText = (document: typeof original) => {
+      const visit = (node: typeof original): string | undefined =>
+        node.type === "codeBlock"
+          ? (node.content ?? []).map((child) => child.text ?? "").join("")
+          : node.content?.map(visit).find((text) => text !== undefined);
+      return visit(document);
+    };
+
+    expect(reparsed).toEqual(original);
+    expect(codeText(reparsed)).toBe(codeText(original));
+    expect(codeText(original)).toContain("code");
+  });
+
   it("keeps an ordinary post with all supported blocks in rich mode", () => {
     const markdown =
       "# Heading\n\n**bold** *italic*\n\n[link](https://example.com)\n\n- list item\n  1. nested ordered\n     - nested bullet\n\n![image](https://example.com/image.webp)\n\n| a |\n| --- |\n| b |\n\n```text\ncode\n```\n\n> quote";
