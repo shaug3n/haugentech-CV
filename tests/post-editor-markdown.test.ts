@@ -79,45 +79,106 @@ describe("post editor Markdown codec", () => {
             : node.type === "codeBlock"
               ? {
                   type: node.type,
+                  attrs: node.attrs,
                   text: (node.content ?? [])
                     .map((child) => child.text ?? "")
-                    .join("")
-                    .trimStart(),
+                    .join(""),
                 }
               : {
                   type: node.type,
                   content: node.content?.map(collectStructure),
                 };
-      const codeText = (document: typeof original): string[] => {
-        const text: string[] = [];
+      const codeBlocks = (document: typeof original) => {
+        const blocks: Array<{ language: unknown; text: string }> = [];
         const visit = (node: typeof original) => {
           if (node.type === "codeBlock") {
-            text.push((node.content ?? []).map((child) => child.text ?? "").join(""));
+            blocks.push({
+              language: node.attrs?.language,
+              text: (node.content ?? []).map((child) => child.text ?? "").join(""),
+            });
           }
           node.content?.forEach(visit);
         };
         visit(document);
-        return text;
+        return blocks;
       };
       const html = await renderMarkdown(serialized);
       const rendered = new DOMParser().parseFromString(html, "text/html");
 
       expect(original.content?.some((node) => node.type === listType)).toBe(true);
       expect(collectStructure(reparsed)).toEqual(collectStructure(original));
-      if (_description === "ordered") {
-        expect(codeText(reparsed).map((text) => text.trimStart())).toEqual(
-          codeText(original).map((text) => text.trimStart()),
-        );
-      } else {
-        expect(codeText(reparsed)).toEqual(codeText(original));
-      }
+      expect(codeBlocks(reparsed)).toEqual(codeBlocks(original));
       expect(rendered.querySelectorAll("li pre code")).toHaveLength(1);
-      expect(rendered.querySelector("li pre code")?.textContent?.trimStart()).toBe(
-        codeText(original)[0].trimStart(),
+      expect(rendered.querySelector("li pre code")?.textContent).toContain(
+        "![x](y)",
       );
       expect(rendered.querySelector("img")).toBeNull();
     },
   );
+
+  it.each([
+    [
+      "preserves meaningful code indentation",
+      "- ```python\n    indented()\n  next()\n  ```",
+      [{ language: "python", text: "  indented()\nnext()" }],
+    ],
+  ])("%s", async (_description, markdown, expectedCodeBlocks) => {
+    const original = parsePostMarkdown(markdown);
+    const serialized = serializePostMarkdown(original);
+    const reparsed = parsePostMarkdown(serialized);
+    const collectCodeBlocks = (document: typeof original) => {
+      const blocks: Array<{ language: unknown; text: string }> = [];
+      const visit = (node: typeof original) => {
+        if (node.type === "codeBlock") {
+          blocks.push({
+            language: node.attrs?.language,
+            text: (node.content ?? []).map((child) => child.text ?? "").join(""),
+          });
+        }
+        node.content?.forEach(visit);
+      };
+      visit(document);
+      return blocks;
+    };
+    const codeBlocks = collectCodeBlocks(original);
+    const rendered = new DOMParser().parseFromString(
+      await renderMarkdown(serialized),
+      "text/html",
+    );
+    if (expectedCodeBlocks) {
+      expect(codeBlocks).toEqual(expectedCodeBlocks);
+    }
+    expect(collectCodeBlocks(reparsed)).toEqual(codeBlocks);
+    expect(rendered.querySelectorAll("li pre code")).toHaveLength(1);
+    expect(rendered.querySelector("li pre code")?.textContent).toContain(
+      "indented()",
+    );
+    expect(rendered.querySelector("img")).toBeNull();
+  });
+
+  it("leaves top-level fenced code text and language unchanged", () => {
+    const markdown = "```ts\n  indented()\n```";
+    const original = parsePostMarkdown(markdown);
+    const serialized = serializePostMarkdown(original);
+    const reparsed = parsePostMarkdown(serialized);
+    const codeBlock = (document: typeof original) => {
+      let found: { language: unknown; text: string } | null = null;
+      const visit = (node: typeof original) => {
+        if (node.type === "codeBlock") {
+          found = {
+            language: node.attrs?.language,
+            text: (node.content ?? []).map((child) => child.text ?? "").join(""),
+          };
+        }
+        node.content?.forEach(visit);
+      };
+      visit(document);
+      return found;
+    };
+
+    expect(serialized).toContain("```ts\n  indented()\n```");
+    expect(codeBlock(reparsed)).toEqual(codeBlock(original));
+  });
 
   it("does not indent list-like fenced code inside an outer code block", () => {
     const markdown = "````text\n- ```text\n![x](y)\n```\n````";

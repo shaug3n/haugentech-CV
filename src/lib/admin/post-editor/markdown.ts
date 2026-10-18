@@ -1,5 +1,6 @@
 import { Editor, type Extensions, type JSONContent } from "@tiptap/core";
 import { Image } from "@tiptap/extension-image";
+import { getListMarker, ListItem } from "@tiptap/extension-list";
 import { Table, TableCell, TableHeader, TableRow } from "@tiptap/extension-table";
 import { Markdown, MarkdownManager } from "@tiptap/markdown";
 import { Placeholder } from "@tiptap/extensions";
@@ -7,7 +8,63 @@ import { StarterKit } from "@tiptap/starter-kit";
 
 export function createPostEditorExtensions(): Extensions {
   return [
-    StarterKit.configure({ link: { openOnClick: false } }),
+    StarterKit.configure({
+      link: { openOnClick: false },
+      listItem: false,
+    }),
+    ListItem.extend({
+      renderMarkdown(node, helpers, context) {
+        const ordered = context.parentType === "orderedList";
+        const prefix =
+          ordered
+            ? getListMarker(
+                context.meta?.parentAttrs?.type,
+                (context.meta?.parentAttrs?.start ?? 1) - 1 +
+                  (context.index ?? 0),
+                ". ",
+              )
+            : "- ";
+        const [first, ...children] = node.content ?? [];
+        // Marked consumes the ordered marker's delimiter column while parsing
+        // continuation blocks, so their source indentation is one column narrower.
+        const contentOffset = prefix.length - (ordered ? 1 : 0);
+        const indent = " ".repeat(contentOffset);
+        const indentBlock = (content: string) =>
+          content
+            .split("\n")
+            .map((line) => `${indent}${line}`)
+            .join("\n");
+        const firstRendered = first ? helpers.renderChildren([first]) : "";
+        let output = prefix;
+        if (first?.type === "paragraph") {
+          output += firstRendered;
+        } else if (first?.type === "codeBlock") {
+          const [opening, ...lines] = firstRendered.split("\n");
+          output += `${opening}\n${lines.map((line) => `${indent}${line}`).join("\n")}`;
+        } else if (first) {
+          output += `\n${indentBlock(firstRendered)}`;
+        }
+
+        children.forEach((child, index) => {
+          const rendered =
+            helpers.renderChild(child, index + 1) ??
+            helpers.renderChildren([child]);
+          const lines = rendered.split("\n");
+          const indented =
+            child.type === "codeBlock"
+              ? lines
+                  .map((line, lineIndex) => {
+                    const isFence = lineIndex === 0 || lineIndex === lines.length - 1;
+                    return `${" ".repeat(isFence ? prefix.length : contentOffset)}${line}`;
+                  })
+                  .join("\n")
+              : indentBlock(rendered);
+          output += child.type === "paragraph" ? `\n\n${indented}` : `\n${indented}`;
+        });
+
+        return output;
+      },
+    }),
     Image.extend({
       parseMarkdown(token, helpers) {
         const alt = (token.text ?? "").replace(/\\([\\[\]])/g, "$1");
@@ -118,57 +175,7 @@ export function getPostEditorMarkdown(editor: Editor): string {
 }
 
 function serializeEditorMarkdown(editor: Editor): string {
-  return indentListCodeFences(editor.getMarkdown());
-}
-
-function indentListCodeFences(markdown: string): string {
-  const lines = markdown.split("\n");
-  let activeFence: { character: string; length: number } | null = null;
-
-  for (let index = 0; index < lines.length; index++) {
-    if (activeFence) {
-      const closing = new RegExp(
-        `^ {0,3}${activeFence.character}{${activeFence.length},}[ \\t]*$`,
-      );
-      if (closing.test(lines[index])) activeFence = null;
-      continue;
-    }
-
-    const opening = lines[index].match(
-      /^([ \t]*)([-+*]|\d+[.)])([ \t]+)(`{3,}|~{3,})/,
-    );
-    if (!opening) {
-      const standaloneFence = lines[index].match(/^ {0,3}(`{3,}|~{3,})/);
-      if (standaloneFence) {
-        activeFence = {
-          character: standaloneFence[1][0],
-          length: standaloneFence[1].length,
-        };
-      }
-      continue;
-    }
-
-    const continuationIndent =
-      opening[1].length + opening[2].length + opening[3].length;
-    const fence = opening[4];
-    const closingPattern = new RegExp(
-      `^ *${fence[0]}{${fence.length},}[ \\t]*$`,
-    );
-
-    for (let lineIndex = index + 1; lineIndex < lines.length; lineIndex++) {
-      const leadingSpaces = lines[lineIndex].match(/^ */)?.[0].length ?? 0;
-      if (leadingSpaces < continuationIndent) {
-        lines[lineIndex] =
-          " ".repeat(continuationIndent - leadingSpaces) + lines[lineIndex];
-      }
-      if (closingPattern.test(lines[lineIndex])) {
-        index = lineIndex;
-        break;
-      }
-    }
-  }
-
-  return lines.join("\n");
+  return editor.getMarkdown();
 }
 
 function normalizeMarkdownForComparison(markdown: string): string {
