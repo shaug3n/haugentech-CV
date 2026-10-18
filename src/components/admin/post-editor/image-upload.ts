@@ -20,7 +20,9 @@ function removePlaceholder(editor: Editor, id: string): void {
   const node = editor.state.doc.nodeAt(position);
   if (!node) return;
   editor.view.dispatch(
-    editor.state.tr.delete(position, position + node.nodeSize),
+    editor.state.tr
+      .delete(position, position + node.nodeSize)
+      .setMeta("addToHistory", false),
   );
 }
 
@@ -35,10 +37,13 @@ function replacePlaceholder(
   const placeholder = editor.state.doc.nodeAt(position);
   const image = editor.schema.nodes.image.create({ src: source, alt });
   if (!placeholder || !image) return null;
-  editor.view.dispatch(
-    editor.state.tr.replaceWith(position, position + placeholder.nodeSize, image),
-  );
-  return position;
+  const removal = editor.state.tr
+    .delete(position, position + placeholder.nodeSize)
+    .setMeta("addToHistory", false);
+  const imagePosition = removal.mapping.map(position);
+  editor.view.dispatch(removal);
+  editor.view.dispatch(editor.state.tr.insert(imagePosition, image));
+  return imagePosition;
 }
 
 export async function uploadImageAtPosition(
@@ -49,10 +54,17 @@ export async function uploadImageAtPosition(
 ): Promise<void> {
   const id = createUploadId();
   const safePosition = Math.max(0, Math.min(position, editor.state.doc.content.size));
-  editor.commands.insertContentAt(safePosition, {
-    type: "imageUploadPlaceholder",
-    attrs: { id },
-  });
+  editor
+    .chain()
+    .insertContentAt(safePosition, {
+      type: "imageUploadPlaceholder",
+      attrs: { id },
+    })
+    .command(({ tr }) => {
+      tr.setMeta("addToHistory", false);
+      return true;
+    })
+    .run();
   callbacks.onPendingChange?.(id, true);
 
   try {
@@ -73,19 +85,8 @@ export async function uploadImageAtPosition(
       return;
     }
 
-    const imagePosition = replacePlaceholder(editor, id, result.url, "");
-    if (imagePosition !== null) {
-      const alt = window.prompt("Alt text for this image") ?? "";
-      const image = editor.state.doc.nodeAt(imagePosition);
-      if (image?.type.name === "image") {
-        editor.view.dispatch(
-          editor.state.tr.setNodeMarkup(imagePosition, undefined, {
-            src: result.url,
-            alt,
-          }),
-        );
-      }
-    }
+    const alt = window.prompt("Alt text for this image") ?? "";
+    replacePlaceholder(editor, id, result.url, alt);
   } catch {
     removePlaceholder(editor, id);
     callbacks.onError?.("Image upload failed. Please try again.");
