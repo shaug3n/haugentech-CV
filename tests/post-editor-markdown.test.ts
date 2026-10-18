@@ -36,6 +36,13 @@ describe("post editor Markdown codec", () => {
     }
   });
 
+  it("keeps an ordinary post with all supported blocks in rich mode", () => {
+    const markdown =
+      "# Heading\n\n**bold** *italic*\n\n[link](https://example.com)\n\n- list item\n\n![image](https://example.com/image.webp)\n\n| a |\n| --- |\n| b |\n\n```text\ncode\n```\n\n> quote";
+
+    expect(getInitialPostEditorState(markdown).mode).toBe("rich");
+  });
+
   it("opens content in Markdown mode when raw HTML cannot round-trip", () => {
     expect(getInitialPostEditorState("<div>legacy</div>")).toEqual({
       mode: "markdown",
@@ -124,6 +131,118 @@ describe("post editor Markdown codec", () => {
     expect(rendered.querySelector("table tbody tr td")?.textContent).toBe(
       "a || b and x|y",
     );
+  });
+
+  it("keeps hard breaks and paragraph boundaries inside one rendered table cell", async () => {
+    const document = {
+      type: "doc",
+      content: [
+        {
+          type: "table",
+          content: [
+            {
+              type: "tableRow",
+              content: [
+                {
+                  type: "tableHeader",
+                  content: [{ type: "paragraph", content: [{ type: "text", text: "value" }] }],
+                },
+              ],
+            },
+            {
+              type: "tableRow",
+              content: [
+                {
+                  type: "tableCell",
+                  content: [
+                    {
+                      type: "paragraph",
+                      content: [
+                        { type: "text", text: "one" },
+                        { type: "hardBreak" },
+                        { type: "text", text: "two" },
+                      ],
+                    },
+                    {
+                      type: "paragraph",
+                      content: [{ type: "text", text: "three" }],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const serialized = serializePostMarkdown(document);
+    const reparsed = parsePostMarkdown(serialized);
+    const reparsedCell = reparsed.content?.[0]?.content?.[1]?.content?.[0];
+    const cellText = (reparsedCell?.content ?? [])
+      .flatMap((paragraph) => paragraph.content ?? [])
+      .map((node) => node.text ?? "")
+      .join("");
+    const rendered = new DOMParser().parseFromString(
+      await renderMarkdown(serialized),
+      "text/html",
+    );
+    const cell = rendered.querySelector("table tbody tr td");
+
+    expect(serialized.split("\n")).toHaveLength(3);
+    expect(cellText).toBe("onetwothree");
+    expect(reparsedCell?.content).toHaveLength(1);
+    expect(rendered.querySelectorAll("table tbody tr td")).toHaveLength(1);
+    expect(cell?.textContent).toBe("onetwothree");
+    expect(cell?.querySelectorAll("br")).toHaveLength(2);
+  });
+
+  it("emits an empty header for tables whose first row has no header cells", () => {
+    const document = {
+      type: "doc",
+      content: [
+        {
+          type: "table",
+          content: [
+            {
+              type: "tableRow",
+              content: [
+                {
+                  type: "tableCell",
+                  content: [{ type: "paragraph", content: [{ type: "text", text: "first" }] }],
+                },
+              ],
+            },
+            {
+              type: "tableRow",
+              content: [
+                {
+                  type: "tableCell",
+                  content: [{ type: "paragraph", content: [{ type: "text", text: "second" }] }],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const serialized = serializePostMarkdown(document);
+    const reparsed = parsePostMarkdown(serialized);
+    const table = reparsed.content?.[0];
+
+    expect(table?.content?.[0]?.content?.[0]?.type).toBe("tableHeader");
+    expect(table?.content?.[0]?.content?.[0]?.content?.[0]?.text).toBeUndefined();
+    expect(
+      table?.content?.[1]?.content?.[0]?.content
+        ?.flatMap((paragraph) => paragraph.content ?? [])
+        .map((node) => node.text ?? "")
+        .join(""),
+    ).toBe("first");
+    expect(
+      table?.content?.[2]?.content?.[0]?.content
+        ?.flatMap((paragraph) => paragraph.content ?? [])
+        .map((node) => node.text ?? "")
+        .join(""),
+    ).toBe("second");
   });
 
   it("preserves blank lines inside fenced code while serializing and comparing", () => {

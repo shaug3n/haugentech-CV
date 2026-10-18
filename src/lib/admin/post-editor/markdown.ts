@@ -39,15 +39,25 @@ export function createPostEditorExtensions(): Extensions {
           Array.from({ length: columns }, (_, index) => {
             const cell = row.content?.[index];
             const text = cell
-              ? helpers.renderChildren(cell.content ?? []).trim()
+              ? (cell.content ?? [])
+                  .map((block) =>
+                    helpers.renderChildren(block.content ?? [block]).trim(),
+                  )
+                  .join("<br>")
               : "";
-            return text.replace(/\|/g, (pipe, offset: number, source: string) => {
-              let backslashes = 0;
-              for (let index = offset - 1; index >= 0 && source[index] === "\\"; index--) {
-                backslashes++;
-              }
-              return backslashes % 2 === 0 ? "\\|" : pipe;
-            });
+            return text
+              .replace(/[ \t]*\n[ \t]*/g, "<br>")
+              .replace(/\|/g, (pipe, offset: number, source: string) => {
+                let backslashes = 0;
+                for (
+                  let index = offset - 1;
+                  index >= 0 && source[index] === "\\";
+                  index--
+                ) {
+                  backslashes++;
+                }
+                return backslashes % 2 === 0 ? "\\|" : pipe;
+              });
           }),
         );
         const header = rows[0]?.content?.some(
@@ -62,7 +72,7 @@ export function createPostEditorExtensions(): Extensions {
           return "---";
         });
         const outputRows = [
-          ...(header ? [cells[0]] : []),
+          header ? cells[0] : Array(columns).fill(""),
           alignments,
           ...cells.slice(header ? 1 : 0),
         ];
