@@ -19,7 +19,7 @@
 - Pass GIFs through unchanged and reject GIFs over 4 MB on the client.
 - Retry once at lower WebP quality when the encoded result is over 4 MB; reject if the retry is still over 4 MB.
 - The server enforces a 4 MB file cap and uploads inline images to the `media` bucket under `posts/inline`.
-- Set Next.js `experimental.serverActions.bodySizeLimit` to the exact value `"4mb"`.
+- Set Next.js `experimental.serverActions.bodySizeLimit` to the exact value `"4.5mb"` (spec said `"4mb"`; raised so a 4 MB file plus multipart overhead fits, still within the Vercel 4.5 MB body cap).
 - The browser receives fixed error strings only; server error details are written to `console.error` and never returned.
 - Inline images are pure Markdown `![alt](url)`, have alt text only, and render at full content width.
 - Rich mode is the default except when the fidelity check fails; the notice text is exactly `Rich mode may reformat this post`.
@@ -29,7 +29,7 @@
 
 ## Review Focus
 
-- **Near-cap request bodies:** A WebP close to 4 MB plus multipart framing may exceed Next's `"4mb"` Server Action body limit before the action runs; the final Playwright task must pin near-cap upload behavior.
+- **Near-cap request bodies:** A WebP close to 4 MB plus multipart framing must still fit under the `"4.5mb"` Server Action body limit; the final Playwright task pins near-cap upload behavior.
 - **Authorization boundary:** An authenticated account whose email is not `ADMIN_EMAIL` must receive only the fixed generic upload error and must not reach Storage; pin this in the action test.
 - **Undecodable allowed MIME:** A zero-byte or corrupt file labeled with an allowed MIME type must fail inline before the server action is called; pin this in image-prep tests.
 - **Concurrent upload failure:** If two uploads are pending and one fails first, its placeholder is removed while Save stays disabled for the other; pin the pending-state transition in upload-state tests and the placeholder removal in the Task 5 manual check.
@@ -284,7 +284,7 @@ Expected: FAIL because `uploadPostImage` and its action module do not exist.
 
 - [ ] **Step 3: Implement `uploadPostImage` and the Next.js body limit**
 
-In `src/app/admin/posts/image-actions.ts`, use `"use server"`, create the server client with `await createSupabaseServer()`, call `requireUser(supabase)` before validating the file, re-check MIME and `file.size <= MAX_UPLOAD_IMAGE_BYTES`, then call `uploadImage(supabase, file, "posts/inline")`. Catch auth and Storage errors, log details only with `console.error`, and return the fixed generic error; never redirect, return exception messages, or wrap this action in `withAdminAction`. In `next.config.ts`, set `experimental.serverActions.bodySizeLimit` to `"4mb"` without changing other config.
+In `src/app/admin/posts/image-actions.ts`, use `"use server"`, create the server client with `await createSupabaseServer()`, call `requireUser(supabase)` before validating the file, re-check MIME and `file.size <= MAX_UPLOAD_IMAGE_BYTES`, then call `uploadImage(supabase, file, "posts/inline")`. Catch auth and Storage errors, log details only with `console.error`, and return the fixed generic error; never redirect, return exception messages, or wrap this action in `withAdminAction`. In `next.config.ts`, set `experimental.serverActions.bodySizeLimit` to `"4.5mb"` without changing other config.
 
 - [ ] **Step 4: Run the test to verify it passes**
 
@@ -413,7 +413,7 @@ Against `npm run dev`, verify toolbar selection, `/image`, drag/drop, and clipbo
 - [ ] **Step 6: Commit inline image editing**
 
 ```bash
-git add src/components/admin/post-editor/UploadPlaceholder.tsx src/components/admin/post-editor/image-upload.ts src/lib/admin/post-editor/upload-state.ts src/components/admin/PostBodyEditor.tsx src/components/admin/post-editor/SlashMenu.tsx tests/post-editor-upload-state.test.ts tests/post-editor-commands.test.ts
+git add src/components/admin/post-editor/UploadPlaceholder.tsx src/components/admin/post-editor/image-upload.ts src/lib/admin/post-editor/upload-state.ts src/components/admin/PostBodyEditor.tsx src/components/admin/post-editor/EditorToolbar.tsx src/components/admin/post-editor/SlashMenu.tsx src/lib/admin/post-editor/slash-commands.ts tests/post-editor-upload-state.test.ts tests/post-editor-commands.test.ts
 git commit -m "feat: add inline post image editing" -m "Co-authored-by: Copilot App <223556219+Copilot@users.noreply.github.com>"
 ```
 
@@ -508,5 +508,4 @@ git commit -m "feat: add bilingual post editor tabs" -m "Co-authored-by: Copilot
 ## Known Risks
 
 - The official `@tiptap/markdown` extension is documented as an early release. Its documented table limitation is multiple child nodes per cell; the round-trip fidelity check must keep unsupported content in Markdown mode by default.
-- Next.js applies `"4mb"` to the Server Action request body, which includes FormData overhead in addition to the file. An image close to the separate 4 MB file cap may therefore be rejected before `uploadPostImage` runs; keep both approved limits unchanged and test a near-cap upload in the final visual check.
-- The current public `.prose-md` styles have no image width rule. The spec requires public images to fill the content width but also says public page/renderer changes are out of scope; the final visual check will reveal whether the existing Tailwind image defaults satisfy that requirement. If they do not, resolving the conflict requires an explicit scope decision rather than silently changing public rendering.
+- "Full content width" is satisfied by Tailwind preflight (`img { max-width: 100%; height: auto; display: block }`): images up to 2000 px span the article width; smaller images are not upscaled. No public CSS change.
