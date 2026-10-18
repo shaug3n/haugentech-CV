@@ -1,6 +1,7 @@
 "use client";
 
 import type { Editor } from "@tiptap/core";
+import { useEditorState } from "@tiptap/react";
 
 type EditorToolbarProps = {
   editor: Editor;
@@ -58,6 +59,23 @@ export function EditorToolbar({
   onInsertImage,
   hasPendingUploads,
 }: EditorToolbarProps) {
+  const active = useEditorState({
+    editor,
+    selector: ({ editor: currentEditor }) => ({
+      heading1: currentEditor.isActive("heading", { level: 1 }),
+      heading2: currentEditor.isActive("heading", { level: 2 }),
+      heading3: currentEditor.isActive("heading", { level: 3 }),
+      bold: currentEditor.isActive("bold"),
+      italic: currentEditor.isActive("italic"),
+      strike: currentEditor.isActive("strike"),
+      code: currentEditor.isActive("code"),
+      bulletList: currentEditor.isActive("bulletList"),
+      orderedList: currentEditor.isActive("orderedList"),
+      blockquote: currentEditor.isActive("blockquote"),
+      codeBlock: currentEditor.isActive("codeBlock"),
+      link: currentEditor.isActive("link"),
+    }),
+  });
   const promptForLink = () => {
     const value = window.prompt("Link URL");
     if (value === null) return;
@@ -75,62 +93,62 @@ export function EditorToolbar({
         <>
           <ToolbarButton
             label="Heading 1"
-            pressed={editor.isActive("heading", { level: 1 })}
+            pressed={active.heading1}
             onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
           />
           <ToolbarButton
             label="Heading 2"
-            pressed={editor.isActive("heading", { level: 2 })}
+            pressed={active.heading2}
             onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
           />
           <ToolbarButton
             label="Heading 3"
-            pressed={editor.isActive("heading", { level: 3 })}
+            pressed={active.heading3}
             onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
           />
           <ToolbarButton
             label="Bold"
-            pressed={editor.isActive("bold")}
+            pressed={active.bold}
             onClick={() => editor.chain().focus().toggleBold().run()}
           />
           <ToolbarButton
             label="Italic"
-            pressed={editor.isActive("italic")}
+            pressed={active.italic}
             onClick={() => editor.chain().focus().toggleItalic().run()}
           />
           <ToolbarButton
             label="Strike"
-            pressed={editor.isActive("strike")}
+            pressed={active.strike}
             onClick={() => editor.chain().focus().toggleStrike().run()}
           />
           <ToolbarButton
             label="Inline code"
-            pressed={editor.isActive("code")}
+            pressed={active.code}
             onClick={() => editor.chain().focus().toggleCode().run()}
           />
           <ToolbarButton
             label="Bullet list"
-            pressed={editor.isActive("bulletList")}
+            pressed={active.bulletList}
             onClick={() => editor.chain().focus().toggleBulletList().run()}
           />
           <ToolbarButton
             label="Numbered list"
-            pressed={editor.isActive("orderedList")}
+            pressed={active.orderedList}
             onClick={() => editor.chain().focus().toggleOrderedList().run()}
           />
           <ToolbarButton
             label="Blockquote"
-            pressed={editor.isActive("blockquote")}
+            pressed={active.blockquote}
             onClick={() => editor.chain().focus().toggleBlockquote().run()}
           />
           <ToolbarButton
             label="Code block"
-            pressed={editor.isActive("codeBlock")}
+            pressed={active.codeBlock}
             onClick={() => editor.chain().focus().toggleCodeBlock().run()}
           />
           <ToolbarButton
             label="Link"
-            pressed={editor.isActive("link")}
+            pressed={active.link}
             onClick={promptForLink}
           />
           <ToolbarButton
