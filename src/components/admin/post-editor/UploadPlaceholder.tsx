@@ -30,6 +30,7 @@ export const ImageUploadPlaceholder = Node.create({
   addAttributes() {
     return {
       id: { default: null },
+      rollbackWrapper: { default: false },
     };
   },
 

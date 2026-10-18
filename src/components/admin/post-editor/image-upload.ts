@@ -1,6 +1,7 @@
 "use client";
 
 import type { Editor } from "@tiptap/core";
+import { skipTrailingNodeMeta } from "@tiptap/extensions";
 import { uploadPostImage } from "@/app/admin/posts/image-actions";
 import { preparePostImage } from "@/lib/admin/image-prep";
 import {
@@ -22,9 +23,17 @@ function removePlaceholder(editor: Editor, id: string): void {
   if (position === null) return;
   const node = editor.state.doc.nodeAt(position);
   if (!node) return;
+  const parent = editor.state.doc.resolve(position).parent;
+  const removeWrapper =
+    node.attrs.rollbackWrapper === true &&
+    parent.type.name === "paragraph" &&
+    parent.childCount === 1;
+  const from = removeWrapper ? position - 1 : position;
+  const size = removeWrapper ? parent.nodeSize : node.nodeSize;
   editor.view.dispatch(
     editor.state.tr
-      .delete(position, position + node.nodeSize)
+      .delete(from, from + size)
+      .setMeta(skipTrailingNodeMeta, true)
       .setMeta("addToHistory", false),
   );
 }
@@ -40,6 +49,22 @@ function replacePlaceholder(
   const placeholder = editor.state.doc.nodeAt(position);
   const image = editor.schema.nodes.image.create({ src: source, alt });
   if (!placeholder || !image) return null;
+  if (placeholder.attrs.rollbackWrapper === true) {
+    const parent = editor.state.doc.resolve(position).parent;
+    if (parent.type.name === "paragraph" && parent.childCount === 1) {
+      const parentPosition = position - 1;
+      editor.view.dispatch(
+        editor.state.tr
+          .replaceWith(
+            parentPosition,
+            parentPosition + parent.nodeSize,
+            image,
+          )
+          .setMeta(skipTrailingNodeMeta, true),
+      );
+      return parentPosition;
+    }
+  }
   const removal = editor.state.tr
     .delete(position, position + placeholder.nodeSize)
     .setMeta("addToHistory", false);
@@ -58,17 +83,31 @@ export async function uploadImageAtPosition(
   const id = createUploadId();
   const safePosition = Math.max(0, Math.min(position, editor.state.doc.content.size));
   pendingImageUploadIds.add(id);
-  editor
-    .chain()
-    .insertContentAt(safePosition, {
-      type: "imageUploadPlaceholder",
-      attrs: { id },
-    })
-    .command(({ tr }) => {
-      tr.setMeta("addToHistory", false);
-      return true;
-    })
-    .run();
+  const placeholder = editor.schema.nodes.imageUploadPlaceholder.create({
+    id,
+    rollbackWrapper: !editor.state.doc.resolve(safePosition).parent.type.inlineContent,
+  });
+  if (placeholder.attrs.rollbackWrapper) {
+    const wrapper = editor.schema.nodes.paragraph.create(null, placeholder);
+    editor.view.dispatch(
+      editor.state.tr
+        .insert(safePosition, wrapper)
+        .setMeta(skipTrailingNodeMeta, true)
+        .setMeta("addToHistory", false),
+    );
+  } else {
+    editor
+      .chain()
+      .insertContentAt(safePosition, {
+        type: "imageUploadPlaceholder",
+        attrs: { id },
+      })
+      .command(({ tr }) => {
+        tr.setMeta("addToHistory", false);
+        return true;
+      })
+      .run();
+  }
   callbacks.onPendingChange?.(id, true);
 
   try {

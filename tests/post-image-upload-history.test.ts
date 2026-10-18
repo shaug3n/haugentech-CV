@@ -46,6 +46,31 @@ function makeParagraphEditor(): Editor {
   });
 }
 
+function makeEditorWithEmptyParagraphBeforeImage(): Editor {
+  return new Editor({
+    element: document.createElement("div"),
+    extensions: [
+      ...createPostEditorExtensions(),
+      ImageUploadPlaceholder,
+      ImageUploadReconciliation,
+    ],
+    content: {
+      type: "doc",
+      content: [
+        { type: "paragraph" },
+        {
+          type: "paragraph",
+          content: [{ type: "text", text: "hello" }],
+        },
+        {
+          type: "image",
+          attrs: { src: "https://example.com/existing.png", alt: "Existing" },
+        },
+      ],
+    },
+  });
+}
+
 function firstPlaceholderId(editor: Editor): string | null {
   let id: string | null = null;
   editor.state.doc.descendants((node) => {
@@ -148,6 +173,76 @@ describe("inline image upload history", () => {
     expect(editor.getJSON()).toEqual(original);
     editor.destroy();
   });
+
+  it.each([
+    ["document start", 0],
+    ["paragraph end", 12],
+  ])(
+    "undoes a successful boundary upload at %s to the exact original document",
+    async (_description, position) => {
+      uploadPostImage.mockResolvedValue({ url: "https://example.com/image.png" });
+      const editor = makeParagraphEditor();
+      const original = editor.getJSON();
+      const { uploadImageAtPosition } = await import(
+        "@/components/admin/post-editor/image-upload"
+      );
+
+      await uploadImageAtPosition(editor, file, position);
+      editor.commands.undo();
+
+      expect(editor.getJSON()).toEqual(original);
+      editor.destroy();
+    },
+  );
+
+  it("preserves a pre-existing empty paragraph when rolling back before an image", async () => {
+    uploadPostImage.mockResolvedValue({ error: "Image upload failed." });
+    const editor = makeEditorWithEmptyParagraphBeforeImage();
+    const original = editor.getJSON();
+    const { uploadImageAtPosition } = await import(
+      "@/components/admin/post-editor/image-upload"
+    );
+
+    await uploadImageAtPosition(editor, file, 9);
+
+    expect(editor.getJSON()).toEqual(original);
+    editor.destroy();
+  });
+
+  it("undoes a successful upload before an image to the exact original document", async () => {
+    uploadPostImage.mockResolvedValue({ url: "https://example.com/image.png" });
+    const editor = makeEditorWithEmptyParagraphBeforeImage();
+    const original = editor.getJSON();
+    const { uploadImageAtPosition } = await import(
+      "@/components/admin/post-editor/image-upload"
+    );
+
+    await uploadImageAtPosition(editor, file, 9);
+    editor.commands.undo();
+
+    expect(editor.getJSON()).toEqual(original);
+    editor.destroy();
+  });
+
+  it.each([
+    ["document start", 0],
+    ["paragraph end", 12],
+  ])(
+    "leaves a failed boundary upload at %s with the exact original document",
+    async (_description, position) => {
+      uploadPostImage.mockResolvedValue({ error: "Image upload failed." });
+      const editor = makeParagraphEditor();
+      const original = editor.getJSON();
+      const { uploadImageAtPosition } = await import(
+        "@/components/admin/post-editor/image-upload"
+      );
+
+      await uploadImageAtPosition(editor, file, position);
+
+      expect(editor.getJSON()).toEqual(original);
+      editor.destroy();
+    },
+  );
 
   it.each([
     ["success", { url: "https://example.com/image.png" }],

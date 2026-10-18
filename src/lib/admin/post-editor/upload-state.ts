@@ -1,4 +1,5 @@
 import { Extension, type Editor } from "@tiptap/core";
+import { skipTrailingNodeMeta } from "@tiptap/extensions";
 import { Plugin } from "@tiptap/pm/state";
 
 export const pendingImageUploadIds = new Set<string>();
@@ -10,13 +11,26 @@ export const ImageUploadReconciliation = Extension.create({
     return [
       new Plugin({
         appendTransaction(_transactions, _oldState, newState) {
-          const stalePlaceholders: Array<{ position: number; size: number }> = [];
+          const stalePlaceholders: Array<{
+            position: number;
+            size: number;
+            wrapper: boolean;
+          }> = [];
           newState.doc.descendants((node, position) => {
             if (
               node.type.name === "imageUploadPlaceholder" &&
               !pendingImageUploadIds.has(node.attrs.id)
             ) {
-              stalePlaceholders.push({ position, size: node.nodeSize });
+              const parent = newState.doc.resolve(position).parent;
+              const removeWrapper =
+                node.attrs.rollbackWrapper === true &&
+                parent.type.name === "paragraph" &&
+                parent.childCount === 1;
+              stalePlaceholders.push({
+                position: removeWrapper ? position - 1 : position,
+                size: removeWrapper ? parent.nodeSize : node.nodeSize,
+                wrapper: removeWrapper,
+              });
             }
           });
           if (stalePlaceholders.length === 0) return null;
@@ -24,6 +38,9 @@ export const ImageUploadReconciliation = Extension.create({
           const transaction = newState.tr;
           for (const { position, size } of stalePlaceholders.reverse()) {
             transaction.delete(position, position + size);
+          }
+          if (stalePlaceholders.some(({ wrapper }) => wrapper)) {
+            transaction.setMeta(skipTrailingNodeMeta, true);
           }
           return transaction.setMeta("addToHistory", false);
         },
