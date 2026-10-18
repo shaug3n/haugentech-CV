@@ -43,6 +43,91 @@ describe("post editor Markdown codec", () => {
     expect(getInitialPostEditorState(markdown).mode).toBe("rich");
   });
 
+  it.each([
+    [
+      "unordered",
+      "- ```text\n  ![x](y)\n  ```",
+      "bulletList",
+    ],
+    [
+      "ordered",
+      "1. item\n\n   ```text\n   ![x](y)\n   ```",
+      "orderedList",
+    ],
+    [
+      "nested",
+      "- outer\n  - ```text\n    ![x](y)\n    ```",
+      "bulletList",
+    ],
+  ])(
+    "round-trips literal fenced code and list structure in %s lists",
+    async (_description, markdown, listType) => {
+      const original = parsePostMarkdown(markdown);
+      const serialized = serializePostMarkdown(original);
+      const reparsed = parsePostMarkdown(serialized);
+      const collectStructure = (node: typeof original): unknown =>
+        node.type === "bulletList" || node.type === "orderedList"
+          ? {
+              type: node.type,
+              content: node.content?.map(collectStructure),
+            }
+          : node.type === "listItem"
+            ? {
+                type: node.type,
+                content: node.content?.map(collectStructure),
+              }
+            : node.type === "codeBlock"
+              ? {
+                  type: node.type,
+                  text: (node.content ?? [])
+                    .map((child) => child.text ?? "")
+                    .join("")
+                    .trimStart(),
+                }
+              : {
+                  type: node.type,
+                  content: node.content?.map(collectStructure),
+                };
+      const codeText = (document: typeof original): string[] => {
+        const text: string[] = [];
+        const visit = (node: typeof original) => {
+          if (node.type === "codeBlock") {
+            text.push((node.content ?? []).map((child) => child.text ?? "").join(""));
+          }
+          node.content?.forEach(visit);
+        };
+        visit(document);
+        return text;
+      };
+      const html = await renderMarkdown(serialized);
+      const rendered = new DOMParser().parseFromString(html, "text/html");
+
+      expect(original.content?.some((node) => node.type === listType)).toBe(true);
+      expect(collectStructure(reparsed)).toEqual(collectStructure(original));
+      if (_description === "ordered") {
+        expect(codeText(reparsed).map((text) => text.trimStart())).toEqual(
+          codeText(original).map((text) => text.trimStart()),
+        );
+      } else {
+        expect(codeText(reparsed)).toEqual(codeText(original));
+      }
+      expect(rendered.querySelectorAll("li pre code")).toHaveLength(1);
+      expect(rendered.querySelector("li pre code")?.textContent?.trimStart()).toBe(
+        codeText(original)[0].trimStart(),
+      );
+      expect(rendered.querySelector("img")).toBeNull();
+    },
+  );
+
+  it("does not indent list-like fenced code inside an outer code block", () => {
+    const markdown = "````text\n- ```text\n![x](y)\n```\n````";
+    const original = parsePostMarkdown(markdown);
+    const serialized = serializePostMarkdown(original);
+
+    expect(serialized).toContain("- ```text\n![x](y)");
+    expect(serialized).not.toContain("- ```text\n  ![x](y)");
+  });
+
   it("opens content in Markdown mode when raw HTML cannot round-trip", () => {
     expect(getInitialPostEditorState("<div>legacy</div>")).toEqual({
       mode: "markdown",
@@ -284,7 +369,7 @@ describe("post editor Markdown codec", () => {
     expect(serialized).toContain("`![x](y)`");
     expect(serialized).toContain("> | a    | b  |");
     expect(serialized).toContain("> ![x](y)");
-    expect(serialized).toContain("| a    | b  |\n![x](y)");
+    expect(serialized).toContain("  | a    | b  |\n  ![x](y)");
     expect(serialized).toMatch(/\n(?:> ?\n){3}> ```/);
   });
 

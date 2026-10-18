@@ -118,7 +118,57 @@ export function getPostEditorMarkdown(editor: Editor): string {
 }
 
 function serializeEditorMarkdown(editor: Editor): string {
-  return editor.getMarkdown();
+  return indentListCodeFences(editor.getMarkdown());
+}
+
+function indentListCodeFences(markdown: string): string {
+  const lines = markdown.split("\n");
+  let activeFence: { character: string; length: number } | null = null;
+
+  for (let index = 0; index < lines.length; index++) {
+    if (activeFence) {
+      const closing = new RegExp(
+        `^ {0,3}${activeFence.character}{${activeFence.length},}[ \\t]*$`,
+      );
+      if (closing.test(lines[index])) activeFence = null;
+      continue;
+    }
+
+    const opening = lines[index].match(
+      /^([ \t]*)([-+*]|\d+[.)])([ \t]+)(`{3,}|~{3,})/,
+    );
+    if (!opening) {
+      const standaloneFence = lines[index].match(/^ {0,3}(`{3,}|~{3,})/);
+      if (standaloneFence) {
+        activeFence = {
+          character: standaloneFence[1][0],
+          length: standaloneFence[1].length,
+        };
+      }
+      continue;
+    }
+
+    const continuationIndent =
+      opening[1].length + opening[2].length + opening[3].length;
+    const fence = opening[4];
+    const closingPattern = new RegExp(
+      `^ *${fence[0]}{${fence.length},}[ \\t]*$`,
+    );
+
+    for (let lineIndex = index + 1; lineIndex < lines.length; lineIndex++) {
+      const leadingSpaces = lines[lineIndex].match(/^ */)?.[0].length ?? 0;
+      if (leadingSpaces < continuationIndent) {
+        lines[lineIndex] =
+          " ".repeat(continuationIndent - leadingSpaces) + lines[lineIndex];
+      }
+      if (closingPattern.test(lines[lineIndex])) {
+        index = lineIndex;
+        break;
+      }
+    }
+  }
+
+  return lines.join("\n");
 }
 
 function normalizeMarkdownForComparison(markdown: string): string {
