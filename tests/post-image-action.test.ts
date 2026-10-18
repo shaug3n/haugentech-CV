@@ -30,7 +30,11 @@ const { uploadPostImage } = await import("@/app/admin/posts/image-actions");
 
 const ownerUser = { email: "owner@example.com" };
 const otherUser = { email: "other@example.com" };
-const validImage = new File(["image"], "test.webp", { type: "image/webp" });
+const validImage = new File(
+  [new Uint8Array([0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50])],
+  "test.webp",
+  { type: "image/webp" },
+);
 
 function formWithFile(file: File): FormData {
   const formData = new FormData();
@@ -39,11 +43,17 @@ function formWithFile(file: File): FormData {
 }
 
 function fileOfType(type: string): File {
-  return new File(["image"], "test.webp", { type });
+  return new File(
+    [new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])],
+    "test.png",
+    { type },
+  );
 }
 
 function fileOfSize(size: number): File {
-  return new File([new Uint8Array(size)], "test.webp", { type: "image/webp" });
+  const bytes = new Uint8Array(size);
+  bytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  return new File([bytes], "test.png", { type: "image/png" });
 }
 
 describe("uploadPostImage", () => {
@@ -111,5 +121,29 @@ describe("uploadPostImage", () => {
     expect(await uploadPostImage(stringFile))
       .toEqual({ error: "Unsupported image type." });
     expect(storageUpload).not.toHaveBeenCalled();
+  });
+
+  it("rejects empty files and bytes whose signature disagrees with the declared MIME", async () => {
+    const mislabeledSvg = new File(["<svg></svg>"], "image.png", { type: "image/png" });
+    const emptyWebp = new File([], "empty.webp", { type: "image/webp" });
+
+    expect(await uploadPostImage(formWithFile(mislabeledSvg))).toEqual({
+      error: "Unsupported image type.",
+    });
+    expect(await uploadPostImage(formWithFile(emptyWebp))).toEqual({
+      error: "Unsupported image type.",
+    });
+    expect(storageUpload).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["image/png", [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]],
+    ["image/jpeg", [0xff, 0xd8, 0xff]],
+    ["image/gif", [..."GIF89a"].map((character) => character.charCodeAt(0))],
+    ["image/webp", [0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50]],
+  ])("accepts a %s signature", async (type, signature) => {
+    const image = new File([new Uint8Array(signature)], "image", { type });
+
+    expect(await uploadPostImage(formWithFile(image))).toEqual({ url: publicUrl });
   });
 });

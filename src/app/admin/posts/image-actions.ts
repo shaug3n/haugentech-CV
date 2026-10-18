@@ -1,6 +1,7 @@
 "use server";
 
 import { MAX_UPLOAD_IMAGE_BYTES, POST_IMAGE_MIME_TYPES } from "@/lib/admin/image-prep";
+import { sniffPostImageMime } from "@/lib/admin/image-signature";
 import { requireUser, uploadImage } from "@/lib/admin/action-utils";
 import { createSupabaseServer } from "@/lib/supabase/server";
 
@@ -20,6 +21,12 @@ export async function uploadPostImage(
     }
     if (file.size > MAX_UPLOAD_IMAGE_BYTES) {
       return { error: "Image must be 4 MB or smaller." };
+    }
+    if (
+      file.size === 0 ||
+      sniffPostImageMime(new Uint8Array(await file.arrayBuffer())) !== file.type
+    ) {
+      return { error: "Unsupported image type." };
     }
 
     return { url: await uploadImage(supabase, file, "posts/inline") };
