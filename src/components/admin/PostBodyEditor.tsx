@@ -16,7 +16,10 @@ import { EditorToolbar } from "@/components/admin/post-editor/EditorToolbar";
 import { createSlashCommandExtension } from "@/components/admin/post-editor/SlashMenu";
 import { ImageUploadPlaceholder } from "@/components/admin/post-editor/UploadPlaceholder";
 import { uploadImageAtPosition } from "@/components/admin/post-editor/image-upload";
-import { reduceUploadState } from "@/lib/admin/post-editor/upload-state";
+import {
+  ImageUploadReconciliation,
+  reduceUploadState,
+} from "@/lib/admin/post-editor/upload-state";
 import { getImageFiles } from "@/lib/admin/post-editor/image-files";
 
 export function PostBodyEditor({
@@ -72,6 +75,7 @@ export function PostBodyEditor({
     () => [
       ...createPostEditorExtensions(),
       ImageUploadPlaceholder,
+      ImageUploadReconciliation,
       createSlashCommandExtension(openImagePicker),
     ],
     [openImagePicker],

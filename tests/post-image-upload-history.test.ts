@@ -6,7 +6,10 @@ import {
   getPostEditorMarkdown,
 } from "@/lib/admin/post-editor/markdown";
 import { ImageUploadPlaceholder } from "@/components/admin/post-editor/UploadPlaceholder";
-import { findUploadPlaceholder } from "@/lib/admin/post-editor/upload-state";
+import {
+  findUploadPlaceholder,
+  ImageUploadReconciliation,
+} from "@/lib/admin/post-editor/upload-state";
 
 const { preparePostImage, uploadPostImage } = vi.hoisted(() => ({
   preparePostImage: vi.fn(),
@@ -21,7 +24,11 @@ const file = new File(["valid image"], "image.png", { type: "image/png" });
 function makeEditor(): Editor {
   return new Editor({
     element: document.createElement("div"),
-    extensions: [...createPostEditorExtensions(), ImageUploadPlaceholder],
+    extensions: [
+      ...createPostEditorExtensions(),
+      ImageUploadPlaceholder,
+      ImageUploadReconciliation,
+    ],
     content: "",
   });
 }
@@ -29,7 +36,11 @@ function makeEditor(): Editor {
 function makeParagraphEditor(): Editor {
   return new Editor({
     element: document.createElement("div"),
-    extensions: [...createPostEditorExtensions(), ImageUploadPlaceholder],
+    extensions: [
+      ...createPostEditorExtensions(),
+      ImageUploadPlaceholder,
+      ImageUploadReconciliation,
+    ],
     content: "hello world",
     contentType: "markdown",
   });
@@ -75,12 +86,12 @@ describe("inline image upload history", () => {
     await upload;
 
     editor.commands.undo();
-    expect(findUploadPlaceholder(editor, placeholderId)).toBeNull();
+    expect(findUploadPlaceholder(editor, placeholderId!)).toBeNull();
     expect(getPostEditorMarkdown(editor)).not.toContain("https://example.com/image.png");
 
     editor.commands.redo();
     expect(getPostEditorMarkdown(editor)).toContain("![Alt](https://example.com/image.png)");
-    expect(findUploadPlaceholder(editor, placeholderId)).toBeNull();
+    expect(findUploadPlaceholder(editor, placeholderId!)).toBeNull();
     editor.destroy();
   });
 
@@ -99,12 +110,13 @@ describe("inline image upload history", () => {
     const upload = uploadImageAtPosition(editor, file, 1);
     await vi.waitFor(() => expect(uploadPostImage).toHaveBeenCalledOnce());
     const placeholderId = firstPlaceholderId(editor);
+    expect(placeholderId).toBeTruthy();
     await new Promise((resolve) => setTimeout(resolve, 600));
     resolveUpload({ error: "Image upload failed. Please try again." });
     await upload;
 
     editor.commands.undo();
-    expect(findUploadPlaceholder(editor, placeholderId)).toBeNull();
+    expect(findUploadPlaceholder(editor, placeholderId!)).toBeNull();
     editor.destroy();
   });
 
@@ -136,4 +148,38 @@ describe("inline image upload history", () => {
     expect(editor.getJSON()).toEqual(original);
     editor.destroy();
   });
+
+  it.each([
+    ["success", { url: "https://example.com/image.png" }],
+    ["failure", { error: "Image upload failed." }],
+  ] as const)(
+    "does not resurrect a deleted placeholder after upload %s",
+    async (_outcome, result) => {
+      let resolveUpload!: (value: typeof result) => void;
+      uploadPostImage.mockReturnValue(
+        new Promise((resolve) => {
+          resolveUpload = resolve;
+        }),
+      );
+      const editor = makeParagraphEditor();
+      const { uploadImageAtPosition } = await import(
+        "@/components/admin/post-editor/image-upload"
+      );
+      const upload = uploadImageAtPosition(editor, file, 6);
+      await vi.waitFor(() => expect(uploadPostImage).toHaveBeenCalledOnce());
+      const placeholderId = firstPlaceholderId(editor);
+      expect(placeholderId).toBeTruthy();
+
+      editor.commands.selectAll();
+      editor.commands.deleteSelection();
+      expect(findUploadPlaceholder(editor, placeholderId!)).toBeNull();
+
+      resolveUpload(result);
+      await upload;
+      editor.commands.undo();
+
+      expect(findUploadPlaceholder(editor, placeholderId!)).toBeNull();
+      editor.destroy();
+    },
+  );
 });

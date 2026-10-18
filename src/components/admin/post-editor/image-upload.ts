@@ -3,7 +3,10 @@
 import type { Editor } from "@tiptap/core";
 import { uploadPostImage } from "@/app/admin/posts/image-actions";
 import { preparePostImage } from "@/lib/admin/image-prep";
-import { findUploadPlaceholder } from "@/lib/admin/post-editor/upload-state";
+import {
+  findUploadPlaceholder,
+  pendingImageUploadIds,
+} from "@/lib/admin/post-editor/upload-state";
 
 export type ImageUploadCallbacks = {
   onPendingChange?(id: string, pending: boolean): void;
@@ -54,6 +57,7 @@ export async function uploadImageAtPosition(
 ): Promise<void> {
   const id = createUploadId();
   const safePosition = Math.max(0, Math.min(position, editor.state.doc.content.size));
+  pendingImageUploadIds.add(id);
   editor
     .chain()
     .insertContentAt(safePosition, {
@@ -91,6 +95,7 @@ export async function uploadImageAtPosition(
     removePlaceholder(editor, id);
     callbacks.onError?.("Image upload failed. Please try again.");
   } finally {
+    pendingImageUploadIds.delete(id);
     callbacks.onPendingChange?.(id, false);
   }
 }
