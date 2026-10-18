@@ -7,4 +7,8 @@ describe("post editor slash commands", () => {
     expect(getPostEditorSlashItems("quote").map(({ id }) => id)).toEqual(["blockquote"]);
     expect(getPostEditorSlashItems("no-match")).toEqual([]);
   });
+
+  it("offers image insertion for the image slash query", () => {
+    expect(getPostEditorSlashItems("image").map(({ id }) => id)).toEqual(["image"]);
+  });
 });

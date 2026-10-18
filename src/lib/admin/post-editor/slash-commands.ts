@@ -69,6 +69,12 @@ const slashCommands: readonly SlashCommand[] = [
     execute: (editor) =>
       editor.chain().focus().insertTable({ rows: 2, cols: 2, withHeaderRow: true }).run(),
   },
+  {
+    id: "image",
+    label: "Image",
+    keywords: ["picture", "photo"],
+    execute: (editor) => editor.chain().focus().run(),
+  },
 ];
 
 export function getPostEditorSlashItems(query: string): readonly SlashCommand[] {

@@ -1,7 +1,9 @@
 "use client";
 
 import { useEditor, EditorContent } from "@tiptap/react";
-import { useMemo, useState, type ReactElement } from "react";
+import { BubbleMenu } from "@tiptap/react/menus";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
+import type { Editor } from "@tiptap/core";
 import {
   createPostEditorExtensions,
   getInitialPostEditorState,
@@ -11,6 +13,9 @@ import {
 import { usePostEditFormContext } from "@/components/admin/post-editor/form-context";
 import { EditorToolbar } from "@/components/admin/post-editor/EditorToolbar";
 import { createSlashCommandExtension } from "@/components/admin/post-editor/SlashMenu";
+import { ImageUploadPlaceholder } from "@/components/admin/post-editor/UploadPlaceholder";
+import { uploadImageAtPosition } from "@/components/admin/post-editor/image-upload";
+import { reduceUploadState } from "@/lib/admin/post-editor/upload-state";
 
 export function PostBodyEditor({
   name,
@@ -28,21 +33,86 @@ export function PostBodyEditor({
   );
   const [mode, setMode] = useState(() => initialEditorState.mode);
   const [notice, setNotice] = useState(() => initialEditorState.notice);
-  const { markDirty } = usePostEditFormContext();
-  const extensions = useMemo(
-    () => [...createPostEditorExtensions(), createSlashCommandExtension()],
+  const [pendingIds, setPendingIds] = useState<string[]>([]);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const pendingPositionRef = useRef<number | null>(null);
+  const editorRef = useRef<Editor | null>(null);
+  const { markDirty, reportPendingUploads } = usePostEditFormContext();
+  const openImagePicker = useCallback((currentEditor: Editor) => {
+    pendingPositionRef.current = currentEditor.state.selection.from;
+    fileInputRef.current?.click();
+  }, []);
+  const addImageFiles = useCallback(
+    (currentEditor: Editor, files: FileList | File[], position: number) => {
+      const selectedFiles = Array.from(files);
+      if (!selectedFiles.length) return;
+      setUploadError(null);
+      selectedFiles.forEach((file, index) => {
+        void uploadImageAtPosition(currentEditor, file, position + index, {
+          onPendingChange: (id, pending) =>
+            setPendingIds((current) =>
+              reduceUploadState(current, {
+                type: pending ? "start" : "finish",
+                id,
+              }),
+            ),
+          onError: setUploadError,
+        });
+      });
+    },
     [],
+  );
+  const extensions = useMemo(
+    () => [
+      ...createPostEditorExtensions(),
+      ImageUploadPlaceholder,
+      createSlashCommandExtension(openImagePicker),
+    ],
+    [openImagePicker],
   );
   const editor = useEditor({
     immediatelyRender: false,
     extensions,
     content: initialMarkdown,
     contentType: "markdown",
+    editorProps: {
+      handleDrop: (view, event) => {
+        const files = event.dataTransfer?.files;
+        if (!files?.length) return false;
+        event.preventDefault();
+        const position =
+          view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos ??
+          view.state.selection.from;
+        const currentEditor = editorRef.current;
+        if (currentEditor) addImageFiles(currentEditor, files, position);
+        return true;
+      },
+      handlePaste: (view, event) => {
+        const files = event.clipboardData?.files;
+        if (!files?.length) return false;
+        event.preventDefault();
+        const currentEditor = editorRef.current;
+        if (currentEditor) {
+          addImageFiles(currentEditor, files, view.state.selection.from);
+        }
+        return true;
+      },
+    },
     onUpdate: ({ editor: currentEditor }) => {
       setMarkdown(currentEditor.getMarkdown());
       markDirty();
     },
   });
+  useEffect(() => {
+    editorRef.current = editor;
+    return () => {
+      editorRef.current = null;
+    };
+  }, [editor]);
+  useEffect(() => {
+    reportPendingUploads(name, pendingIds.length);
+  }, [name, pendingIds.length, reportPendingUploads]);
 
   const changeMode = (nextMode: "rich" | "markdown") => {
     if (nextMode === mode) return;
@@ -72,16 +142,52 @@ export function PostBodyEditor({
       )}
       {mode === "rich" && editor && (
         <>
-          <EditorToolbar editor={editor} mode={mode} onModeChange={changeMode} />
+          <EditorToolbar
+            editor={editor}
+            mode={mode}
+            onModeChange={changeMode}
+            onInsertImage={() => openImagePicker(editor)}
+          />
           <div className="post-editor prose-md min-h-80 rounded-lg border border-neutral-300 px-3 py-2">
             <EditorContent editor={editor} />
           </div>
+          <BubbleMenu
+            editor={editor}
+            shouldShow={({ editor: currentEditor }) => currentEditor.isActive("image")}
+            className="flex gap-1 rounded border border-neutral-300 bg-white p-1 shadow"
+          >
+            <button
+              type="button"
+              className="rounded px-2 py-1 text-xs hover:bg-neutral-100"
+              onClick={() => {
+                const currentAlt = editor.getAttributes("image").alt ?? "";
+                const alt = window.prompt("Alt text for this image", currentAlt);
+                if (alt !== null) {
+                  editor.chain().focus().updateAttributes("image", { alt }).run();
+                }
+              }}
+            >
+              Edit alt
+            </button>
+            <button
+              type="button"
+              className="rounded px-2 py-1 text-xs hover:bg-neutral-100"
+              onClick={() => editor.chain().focus().deleteSelection().run()}
+            >
+              Remove image
+            </button>
+          </BubbleMenu>
         </>
       )}
       {mode === "markdown" && (
         <>
           {editor && (
-            <EditorToolbar editor={editor} mode={mode} onModeChange={changeMode} />
+            <EditorToolbar
+              editor={editor}
+              mode={mode}
+              onModeChange={changeMode}
+              onInsertImage={() => openImagePicker(editor)}
+            />
           )}
           <textarea
             value={markdown}
@@ -94,6 +200,30 @@ export function PostBodyEditor({
           />
         </>
       )}
+      {uploadError && (
+        <p className="mt-2 text-sm text-red-700" role="alert">
+          {uploadError}
+        </p>
+      )}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/gif"
+        multiple
+        className="hidden"
+        aria-label="Choose images to insert"
+        onChange={(event) => {
+          if (editor) {
+            addImageFiles(
+              editor,
+              event.currentTarget.files ?? [],
+              pendingPositionRef.current ?? editor.state.selection.from,
+            );
+          }
+          pendingPositionRef.current = null;
+          event.currentTarget.value = "";
+        }}
+      />
       <input type="hidden" name={name} value={markdown} />
     </div>
   );

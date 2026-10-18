@@ -36,6 +36,7 @@ section[id] {
 .dark .prose-md pre.shiki, .dark .prose-md pre.shiki span { color: var(--shiki-dark) !important; background-color: var(--shiki-dark-bg) !important; }
 
 .post-editor .ProseMirror { min-height: 18rem; outline: none; }
+.post-editor .ProseMirror img { display: block; width: 100%; max-width: 100%; height: auto; margin: 1rem 0; }
 .post-editor .ProseMirror p.is-editor-empty:first-child::before { color: #a3a3a3; content: attr(data-placeholder); float: left; height: 0; pointer-events: none; }
 .post-editor .ProseMirror table { border-collapse: collapse; margin: 1em 0; table-layout: fixed; width: 100%; }
 .post-editor .ProseMirror th, .post-editor .ProseMirror td { border: 1px solid #d4d4d4; min-width: 1em; padding: 0.35rem 0.5rem; vertical-align: top; }

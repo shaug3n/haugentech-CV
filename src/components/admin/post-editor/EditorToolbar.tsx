@@ -6,6 +6,7 @@ type EditorToolbarProps = {
   editor: Editor;
   mode: "rich" | "markdown";
   onModeChange(mode: "rich" | "markdown"): void;
+  onInsertImage(): void;
 };
 
 type ToolbarButtonProps = {
@@ -39,7 +40,12 @@ function getSafeLinkUrl(value: string): string | null {
   }
 }
 
-export function EditorToolbar({ editor, mode, onModeChange }: EditorToolbarProps) {
+export function EditorToolbar({
+  editor,
+  mode,
+  onModeChange,
+  onInsertImage,
+}: EditorToolbarProps) {
   const promptForLink = () => {
     const value = window.prompt("Link URL");
     if (value === null) return;
@@ -115,6 +121,7 @@ export function EditorToolbar({ editor, mode, onModeChange }: EditorToolbarProps
             pressed={editor.isActive("link")}
             onClick={promptForLink}
           />
+          <ToolbarButton label="Insert image" onClick={onInsertImage} />
           <ToolbarButton
             label="Table"
             onClick={() =>

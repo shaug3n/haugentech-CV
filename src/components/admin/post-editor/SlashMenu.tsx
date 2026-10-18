@@ -1,6 +1,6 @@
 "use client";
 
-import { Extension } from "@tiptap/core";
+import { Extension, type Editor } from "@tiptap/core";
 import { ReactRenderer } from "@tiptap/react";
 import {
   Suggestion,
@@ -59,7 +59,9 @@ function positionPopup(renderer: ReactRenderer, props: SuggestionProps<SlashComm
   });
 }
 
-export function createSlashCommandExtension() {
+export function createSlashCommandExtension(
+  onInsertImage: (editor: Editor) => void,
+) {
   return Extension.create({
     name: "postSlashCommands",
     addProseMirrorPlugins() {
@@ -72,7 +74,8 @@ export function createSlashCommandExtension() {
           items: ({ query }) => [...getPostEditorSlashItems(query)],
           command: ({ editor: currentEditor, range, props }) => {
             currentEditor.chain().focus().deleteRange(range).run();
-            props.execute(currentEditor);
+            if (props.id === "image") onInsertImage(currentEditor);
+            else props.execute(currentEditor);
           },
           render: () => {
             let renderer: ReactRenderer | null = null;
