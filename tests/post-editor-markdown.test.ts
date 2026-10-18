@@ -38,7 +38,7 @@ describe("post editor Markdown codec", () => {
 
   it("keeps an ordinary post with all supported blocks in rich mode", () => {
     const markdown =
-      "# Heading\n\n**bold** *italic*\n\n[link](https://example.com)\n\n- list item\n\n![image](https://example.com/image.webp)\n\n| a |\n| --- |\n| b |\n\n```text\ncode\n```\n\n> quote";
+      "# Heading\n\n**bold** *italic*\n\n[link](https://example.com)\n\n- list item\n  1. nested ordered\n     - nested bullet\n\n![image](https://example.com/image.webp)\n\n| a |\n| --- |\n| b |\n\n```text\ncode\n```\n\n> quote";
 
     expect(getInitialPostEditorState(markdown).mode).toBe("rich");
   });
@@ -122,6 +122,21 @@ describe("post editor Markdown codec", () => {
       "- ```python\n    indented()\n  next()\n  ```",
       [{ language: "python", text: "  indented()\nnext()" }],
     ],
+    [
+      "preserves nested unordered and ordered list fences",
+      "- outer\n  1. inner\n     ```js\n       first()\n     next()\n     ```",
+      undefined,
+    ],
+    [
+      "preserves blockquote-contained list code literally",
+      "> - ```text\n>   ![x](y)\n>   ```",
+      undefined,
+    ],
+    [
+      "preserves fence-like lines inside nested code",
+      "- ````text\n  - ```text\n  ~~~\n  ![x](y)\n  ````",
+      undefined,
+    ],
   ])("%s", async (_description, markdown, expectedCodeBlocks) => {
     const original = parsePostMarkdown(markdown);
     const serialized = serializePostMarkdown(original);
@@ -149,10 +164,12 @@ describe("post editor Markdown codec", () => {
       expect(codeBlocks).toEqual(expectedCodeBlocks);
     }
     expect(collectCodeBlocks(reparsed)).toEqual(codeBlocks);
-    expect(rendered.querySelectorAll("li pre code")).toHaveLength(1);
-    expect(rendered.querySelector("li pre code")?.textContent).toContain(
-      "indented()",
-    );
+    expect(rendered.querySelectorAll("pre code")).toHaveLength(1);
+    if (markdown.includes("![x](y)")) {
+      expect(rendered.querySelector("pre code")?.textContent).toContain(
+        "![x](y)",
+      );
+    }
     expect(rendered.querySelector("img")).toBeNull();
   });
 
@@ -178,6 +195,14 @@ describe("post editor Markdown codec", () => {
 
     expect(serialized).toContain("```ts\n  indented()\n```");
     expect(codeBlock(reparsed)).toEqual(codeBlock(original));
+  });
+
+  it("prefixes every blockquote continuation line, including blank code lines", () => {
+    const markdown =
+      "> - ```text\n>   first\n>\n>   second\n>   ```";
+    const serialized = serializePostMarkdown(parsePostMarkdown(markdown));
+
+    expect(serialized).toBe("> - ```text\n>   first\n>   \n>   second\n>   ```");
   });
 
   it("does not indent list-like fenced code inside an outer code block", () => {

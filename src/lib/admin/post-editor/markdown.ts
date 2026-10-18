@@ -1,4 +1,5 @@
 import { Editor, type Extensions, type JSONContent } from "@tiptap/core";
+import { Blockquote } from "@tiptap/extension-blockquote";
 import { Image } from "@tiptap/extension-image";
 import { getListMarker, ListItem } from "@tiptap/extension-list";
 import { Table, TableCell, TableHeader, TableRow } from "@tiptap/extension-table";
@@ -10,6 +11,7 @@ export function createPostEditorExtensions(): Extensions {
   return [
     StarterKit.configure({
       link: { openOnClick: false },
+      blockquote: false,
       listItem: false,
     }),
     ListItem.extend({
@@ -29,6 +31,7 @@ export function createPostEditorExtensions(): Extensions {
         // continuation blocks, so their source indentation is one column narrower.
         const contentOffset = prefix.length - (ordered ? 1 : 0);
         const indent = " ".repeat(contentOffset);
+        const listIndent = " ".repeat(prefix.length);
         const indentBlock = (content: string) =>
           content
             .split("\n")
@@ -47,7 +50,7 @@ export function createPostEditorExtensions(): Extensions {
 
         children.forEach((child, index) => {
           const rendered =
-            helpers.renderChild(child, index + 1) ??
+            helpers.renderChild?.(child, index + 1) ??
             helpers.renderChildren([child]);
           const lines = rendered.split("\n");
           const indented =
@@ -58,11 +61,32 @@ export function createPostEditorExtensions(): Extensions {
                     return `${" ".repeat(isFence ? prefix.length : contentOffset)}${line}`;
                   })
                   .join("\n")
+              : child.type === "bulletList" || child.type === "orderedList"
+                ? rendered
+                    .split("\n")
+                    .map((line) => `${listIndent}${line}`)
+                    .join("\n")
               : indentBlock(rendered);
           output += child.type === "paragraph" ? `\n\n${indented}` : `\n${indented}`;
         });
 
         return output;
+      },
+    }),
+    Blockquote.extend({
+      renderMarkdown(node, helpers) {
+        if (!node.content) return "";
+        return node.content
+          .map((child, index) => {
+            const rendered =
+              helpers.renderChild?.(child, index) ??
+              helpers.renderChildren([child]);
+            return rendered
+              .split("\n")
+              .map((line) => `> ${line}`)
+              .join("\n");
+          })
+          .join("\n> \n");
       },
     }),
     Image.extend({
