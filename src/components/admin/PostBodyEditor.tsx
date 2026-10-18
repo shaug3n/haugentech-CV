@@ -1,7 +1,7 @@
 "use client";
 
 import { useEditor, EditorContent } from "@tiptap/react";
-import { useEffect, useMemo, useState, type ReactElement } from "react";
+import { useMemo, useState, type ReactElement } from "react";
 import {
   createPostEditorExtensions,
   getInitialPostEditorState,
@@ -23,14 +23,12 @@ export function PostBodyEditor({
 }): ReactElement {
   const initialMarkdown = defaultValue ?? "";
   const [markdown, setMarkdown] = useState(initialMarkdown);
-  const [mode, setMode] = useState<"rich" | "markdown">("rich");
-  const [notice, setNotice] = useState<string | null>(null);
+  const [initialEditorState] = useState(() =>
+    getInitialPostEditorState(initialMarkdown),
+  );
+  const [mode, setMode] = useState(() => initialEditorState.mode);
+  const [notice, setNotice] = useState(() => initialEditorState.notice);
   const { markDirty } = usePostEditFormContext();
-  useEffect(() => {
-    const initialState = getInitialPostEditorState(initialMarkdown);
-    setMode(initialState.mode);
-    setNotice(initialState.notice);
-  }, [initialMarkdown]);
   const extensions = useMemo(
     () => [...createPostEditorExtensions(), createSlashCommandExtension()],
     [],

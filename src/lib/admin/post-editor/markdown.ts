@@ -1,7 +1,7 @@
 import { Editor, type Extensions, type JSONContent } from "@tiptap/core";
 import { Image } from "@tiptap/extension-image";
 import { TableKit } from "@tiptap/extension-table";
-import { Markdown } from "@tiptap/markdown";
+import { Markdown, MarkdownManager } from "@tiptap/markdown";
 import { Placeholder } from "@tiptap/extensions";
 import { StarterKit } from "@tiptap/starter-kit";
 
@@ -70,8 +70,14 @@ function normalizeMarkdownForComparison(markdown: string): string {
 export function getInitialPostEditorState(
   markdown: string,
 ): { mode: "rich" | "markdown"; notice: string | null } {
-  const parsed = parsePostMarkdown(markdown);
-  const serialized = serializePostMarkdown(parsed);
+  const markdownManager = new MarkdownManager({
+    extensions: createPostEditorExtensions(),
+  });
+  const parsed = markdownManager.parse(markdown);
+  normalizeImageAltText(parsed);
+  const serialized = normalizeSerializedMarkdown(
+    markdownManager.serialize(parsed),
+  );
   if (
     normalizeMarkdownForComparison(serialized) ===
     normalizeMarkdownForComparison(markdown)
