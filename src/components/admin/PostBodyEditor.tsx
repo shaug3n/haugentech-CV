@@ -16,6 +16,7 @@ import { createSlashCommandExtension } from "@/components/admin/post-editor/Slas
 import { ImageUploadPlaceholder } from "@/components/admin/post-editor/UploadPlaceholder";
 import { uploadImageAtPosition } from "@/components/admin/post-editor/image-upload";
 import { reduceUploadState } from "@/lib/admin/post-editor/upload-state";
+import { getImageFiles } from "@/lib/admin/post-editor/image-files";
 
 export function PostBodyEditor({
   name,
@@ -38,6 +39,8 @@ export function PostBodyEditor({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pendingPositionRef = useRef<number | null>(null);
   const editorRef = useRef<Editor | null>(null);
+  const modeRef = useRef(mode);
+  const pendingIdsRef = useRef<string[]>([]);
   const { markDirty, reportPendingUploads } = usePostEditFormContext();
   const openImagePicker = useCallback((currentEditor: Editor) => {
     pendingPositionRef.current = currentEditor.state.selection.from;
@@ -50,13 +53,14 @@ export function PostBodyEditor({
       setUploadError(null);
       selectedFiles.forEach((file, index) => {
         void uploadImageAtPosition(currentEditor, file, position + index, {
-          onPendingChange: (id, pending) =>
-            setPendingIds((current) =>
-              reduceUploadState(current, {
-                type: pending ? "start" : "finish",
-                id,
-              }),
-            ),
+          onPendingChange: (id, pending) => {
+            const nextPendingIds = reduceUploadState(pendingIdsRef.current, {
+              type: pending ? "start" : "finish",
+              id,
+            });
+            pendingIdsRef.current = nextPendingIds;
+            setPendingIds(nextPendingIds);
+          },
           onError: setUploadError,
         });
       });
@@ -78,8 +82,8 @@ export function PostBodyEditor({
     contentType: "markdown",
     editorProps: {
       handleDrop: (view, event) => {
-        const files = event.dataTransfer?.files;
-        if (!files?.length) return false;
+        const files = getImageFiles(event.dataTransfer?.files ?? []);
+        if (!files.length) return false;
         event.preventDefault();
         const position =
           view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos ??
@@ -89,8 +93,8 @@ export function PostBodyEditor({
         return true;
       },
       handlePaste: (view, event) => {
-        const files = event.clipboardData?.files;
-        if (!files?.length) return false;
+        const files = getImageFiles(event.clipboardData?.files ?? []);
+        if (!files.length) return false;
         event.preventDefault();
         const currentEditor = editorRef.current;
         if (currentEditor) {
@@ -100,6 +104,7 @@ export function PostBodyEditor({
       },
     },
     onUpdate: ({ editor: currentEditor }) => {
+      if (modeRef.current === "markdown") return;
       setMarkdown(currentEditor.getMarkdown());
       markDirty();
     },
@@ -113,17 +118,24 @@ export function PostBodyEditor({
   useEffect(() => {
     reportPendingUploads(name, pendingIds.length);
   }, [name, pendingIds.length, reportPendingUploads]);
+  useEffect(
+    () => () => reportPendingUploads(name, 0),
+    [name, reportPendingUploads],
+  );
 
   const changeMode = (nextMode: "rich" | "markdown") => {
     if (nextMode === mode) return;
+    if (nextMode === "markdown" && pendingIdsRef.current.length > 0) return;
     if (nextMode === "markdown") {
       const nextMarkdown = editor?.getMarkdown() ?? markdown;
       setMarkdown(nextMarkdown);
+      modeRef.current = nextMode;
       setMode(nextMode);
     } else {
       const document = parsePostMarkdown(markdown);
       editor?.commands.setContent(document, { emitUpdate: false });
       setMarkdown(serializePostMarkdown(document));
+      modeRef.current = nextMode;
       setMode(nextMode);
       setNotice(null);
     }
@@ -147,6 +159,7 @@ export function PostBodyEditor({
             mode={mode}
             onModeChange={changeMode}
             onInsertImage={() => openImagePicker(editor)}
+            hasPendingUploads={pendingIds.length > 0}
           />
           <div className="post-editor prose-md min-h-80 rounded-lg border border-neutral-300 px-3 py-2">
             <EditorContent editor={editor} />
@@ -187,6 +200,7 @@ export function PostBodyEditor({
               mode={mode}
               onModeChange={changeMode}
               onInsertImage={() => openImagePicker(editor)}
+              hasPendingUploads={pendingIds.length > 0}
             />
           )}
           <textarea

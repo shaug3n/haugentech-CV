@@ -7,20 +7,31 @@ type EditorToolbarProps = {
   mode: "rich" | "markdown";
   onModeChange(mode: "rich" | "markdown"): void;
   onInsertImage(): void;
+  hasPendingUploads: boolean;
 };
 
 type ToolbarButtonProps = {
   label: string;
   pressed?: boolean;
+  disabled?: boolean;
+  title?: string;
   onClick(): void;
 };
 
-function ToolbarButton({ label, pressed, onClick }: ToolbarButtonProps) {
+function ToolbarButton({
+  label,
+  pressed,
+  disabled,
+  title,
+  onClick,
+}: ToolbarButtonProps) {
   return (
     <button
       type="button"
       aria-label={label}
       aria-pressed={pressed}
+      disabled={disabled}
+      title={title}
       onClick={onClick}
       className={`rounded px-2 py-1 text-xs hover:bg-neutral-100 ${
         pressed ? "bg-neutral-200 font-semibold" : ""
@@ -45,6 +56,7 @@ export function EditorToolbar({
   mode,
   onModeChange,
   onInsertImage,
+  hasPendingUploads,
 }: EditorToolbarProps) {
   const promptForLink = () => {
     const value = window.prompt("Link URL");
@@ -121,7 +133,6 @@ export function EditorToolbar({
             pressed={editor.isActive("link")}
             onClick={promptForLink}
           />
-          <ToolbarButton label="Insert image" onClick={onInsertImage} />
           <ToolbarButton
             label="Table"
             onClick={() =>
@@ -133,6 +144,9 @@ export function EditorToolbar({
           <span className="mx-1 h-5 border-l border-neutral-300" aria-hidden="true" />
         </>
       )}
+      {mode === "rich" && (
+        <ToolbarButton label="Insert image" onClick={onInsertImage} />
+      )}
       <ToolbarButton
         label="Rich"
         pressed={mode === "rich"}
@@ -141,6 +155,12 @@ export function EditorToolbar({
       <ToolbarButton
         label="Markdown"
         pressed={mode === "markdown"}
+        disabled={mode === "rich" && hasPendingUploads}
+        title={
+          mode === "rich" && hasPendingUploads
+            ? "Wait for image uploads to finish"
+            : undefined
+        }
         onClick={() => onModeChange("markdown")}
       />
     </div>
