@@ -43,6 +43,47 @@ describe("post editor Markdown codec", () => {
     expect(getInitialPostEditorState("# Heading\r\n\r\n").mode).toBe("rich");
   });
 
+  it.each([
+    ["a single table", "| a | b |\n| --- | --- |\n| 1 | 2 |"],
+    [
+      "multiple tables",
+      "Before.\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\nAfter.\n\n| c | d |\n| --- | --- |\n| 3 | 4 |",
+    ],
+    [
+      "a padded hand-aligned table",
+      "| a    | b   |\n| ---- | --- |\n| 1    | 2   |",
+    ],
+    ["a table at the start of the document", "| a | b |\n| --- | --- |\n| 1 | 2 |\n\nAfter."],
+  ])("opens %s in rich mode", (_description, markdown) => {
+    expect(getInitialPostEditorState(markdown).mode).toBe("rich");
+  });
+
+  it("preserves and compares table alignment", () => {
+    const markdown = "| left | center | right |\n| :--- | :---: | ---: |\n| a | b | c |";
+
+    expect(serializePostMarkdown(parsePostMarkdown(markdown))).toMatch(
+      /\| :-+ \| :-+: \| -+: \|/,
+    );
+    expect(getInitialPostEditorState(markdown).mode).toBe("rich");
+  });
+
+  it("preserves blank lines inside fenced code while serializing and comparing", () => {
+    const markdown = "```text\nfirst\n\n\nlast\n```";
+    const serialized = serializePostMarkdown(parsePostMarkdown(markdown));
+
+    expect(serialized).toContain("```text\nfirst\n\n\nlast\n```");
+    expect(getInitialPostEditorState(markdown).mode).toBe("rich");
+  });
+
+  it("removes serializer-only blank lines around tables", () => {
+    const markdown =
+      "# Hello world\n\nSome **bold** text.\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\nAfter table.\n\n| Name | Longer header |\n| --- | --- |\n| x | y |\n";
+    const serialized = serializePostMarkdown(parsePostMarkdown(markdown));
+
+    expect(serialized.startsWith("\n")).toBe(false);
+    expect(serialized).not.toContain("\n\n\n");
+  });
+
   it("preserves Markdown-special characters in image alt text", () => {
     const markdown = String.raw`![left \] and \\ right](https://example.com/image.webp)`;
     const serialized = serializePostMarkdown(parsePostMarkdown(markdown));
