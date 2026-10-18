@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } 
 import type { Editor } from "@tiptap/core";
 import {
   createPostEditorExtensions,
+  getPostEditorMarkdown,
   getInitialPostEditorState,
   parsePostMarkdown,
   serializePostMarkdown,
@@ -105,7 +106,7 @@ export function PostBodyEditor({
     },
     onUpdate: ({ editor: currentEditor }) => {
       if (modeRef.current === "markdown") return;
-      setMarkdown(currentEditor.getMarkdown());
+      setMarkdown(getPostEditorMarkdown(currentEditor));
       markDirty();
     },
   });
@@ -127,7 +128,9 @@ export function PostBodyEditor({
     if (nextMode === mode) return;
     if (nextMode === "markdown" && pendingIdsRef.current.length > 0) return;
     if (nextMode === "markdown") {
-      const nextMarkdown = editor?.getMarkdown() ?? markdown;
+      const nextMarkdown = editor
+        ? getPostEditorMarkdown(editor)
+        : markdown;
       setMarkdown(nextMarkdown);
       modeRef.current = nextMode;
       setMode(nextMode);

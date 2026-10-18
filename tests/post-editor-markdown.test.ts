@@ -1,6 +1,9 @@
 // @vitest-environment jsdom
+import { Editor } from "@tiptap/core";
 import { describe, expect, it } from "vitest";
 import {
+  createPostEditorExtensions,
+  getPostEditorMarkdown,
   getInitialPostEditorState,
   parsePostMarkdown,
   serializePostMarkdown,
@@ -92,5 +95,73 @@ describe("post editor Markdown codec", () => {
       type: "image",
       attrs: { alt: "left ] and \\ right" },
     });
+  });
+
+  it("normalizes editor Markdown and preserves image alt text", () => {
+    const editor = new Editor({
+      element: document.createElement("div"),
+      extensions: createPostEditorExtensions(),
+      content: {
+        type: "doc",
+        content: [
+          {
+            type: "image",
+            attrs: {
+              src: "https://example.com/image.webp",
+              alt: "Fjord [view] here a]b [x]",
+            },
+          },
+          {
+            type: "table",
+            content: [
+              {
+                type: "tableRow",
+                content: [
+                  {
+                    type: "tableHeader",
+                    content: [{ type: "paragraph", content: [{ type: "text", text: "Name" }] }],
+                  },
+                  {
+                    type: "tableHeader",
+                    content: [{ type: "paragraph", content: [{ type: "text", text: "Place" }] }],
+                  },
+                ],
+              },
+              {
+                type: "tableRow",
+                content: [
+                  {
+                    type: "tableCell",
+                    content: [{ type: "paragraph", content: [{ type: "text", text: "Fjord" }] }],
+                  },
+                  {
+                    type: "tableCell",
+                    content: [{ type: "paragraph", content: [{ type: "text", text: "North" }] }],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    });
+    try {
+      const output = getPostEditorMarkdown(editor);
+
+      expect(output).toContain(String.raw`a\]b`);
+      expect(output).toContain("| Name | Place |");
+      expect(output).not.toMatch(/\| [^|\n]* {2,}\|/);
+      expect(output).not.toContain("\n\n\n");
+      const parsed = parsePostMarkdown(output);
+      const image = parsed.content
+        ?.flatMap((node) => [node, ...(node.content ?? [])])
+        .find((node) => node.type === "image");
+      expect(image).toMatchObject({
+        type: "image",
+        attrs: { alt: "Fjord [view] here a]b [x]" },
+      });
+    } finally {
+      editor.destroy();
+    }
   });
 });

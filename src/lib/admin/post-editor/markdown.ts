@@ -45,10 +45,18 @@ function normalizeImageAltText(node: JSONContent): void {
 export function serializePostMarkdown(document: JSONContent): string {
   const editor = createMarkdownEditor(document);
   try {
-    return normalizeSerializedMarkdown(editor.getMarkdown());
+    return serializeEditorMarkdown(editor);
   } finally {
     editor.destroy();
   }
+}
+
+export function getPostEditorMarkdown(editor: Editor): string {
+  return serializeEditorMarkdown(editor);
+}
+
+function serializeEditorMarkdown(editor: Editor): string {
+  return normalizeSerializedMarkdown(editor.getMarkdown());
 }
 
 function normalizeSerializedMarkdown(markdown: string): string {
@@ -57,7 +65,7 @@ function normalizeSerializedMarkdown(markdown: string): string {
       .replace(
         /!\[([\s\S]*?)\]\(([^)]*)\)/g,
         (_, alt: string, destination: string) =>
-          `![${alt.replace(/(?<!\\)\]/g, "\\]")}](${destination})`,
+          `![${alt.replace(/(?<!\\)([\[\]])/g, "\\$1")}](${destination})`,
       )
       .replace(/(^|\|) ([^|\n]*?) {2,}(?=\|)/g, "$1 $2 ")
       .replace(/\n{3,}/g, "\n\n");
