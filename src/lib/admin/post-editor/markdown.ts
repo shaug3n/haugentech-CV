@@ -90,7 +90,7 @@ export function createPostEditorExtensions(): Extensions {
               .map((line) => `> ${line}`)
               .join("\n");
           })
-          .join("\n> \n");
+          .join("\n>\n");
       },
     }),
     Image.extend({
@@ -214,6 +214,8 @@ function normalizeMarkdownForComparison(markdown: string): string {
         .replace(/\r\n?/g, "\n")
         .split("\n")
         .map((line) => {
+          const blockquoteBlank = line.match(/^([ \t]*>(?:[ \t]*>)*)[ \t]+$/);
+          if (blockquoteBlank) return blockquoteBlank[1];
           if (!/^[ \t]*\|/.test(line)) return line;
           const cells = line
             .trim()

@@ -158,6 +158,10 @@ describe("post editor Markdown codec", () => {
     expect(getInitialPostEditorState(markdown).mode).toBe("rich");
   });
 
+  it("compares user-typed trailing whitespace on blank quote lines as normalized", () => {
+    expect(getInitialPostEditorState("> a\n> \n> b").mode).toBe("rich");
+  });
+
   it.each([
     [
       "unordered",
@@ -318,6 +322,23 @@ describe("post editor Markdown codec", () => {
     const serialized = serializePostMarkdown(parsePostMarkdown(markdown));
 
     expect(serialized).toBe("> - ```text\n>   first\n>   \n>   second\n>   ```");
+  });
+
+  it.each([
+    ["> a\n>\n> b", "> a\n>\n> b"],
+    ["> quote\n>\n> - item", "> quote\n>\n> - item"],
+    ["> a\n>\n> > b", "> a\n>\n> > b"],
+  ])("serializes blank blockquote lines without trailing spaces: %s", (markdown, expected) => {
+    expect(serializePostMarkdown(parsePostMarkdown(markdown))).toBe(expected);
+    expect(getInitialPostEditorState(markdown).mode).toBe("rich");
+  });
+
+  it("preserves quoted code whitespace and hard-break spaces", () => {
+    const fenced = "> ```text\n> \n> ```";
+    const hardBreak = "> first  \n> second";
+
+    expect(serializePostMarkdown(parsePostMarkdown(fenced))).toBe(fenced);
+    expect(serializePostMarkdown(parsePostMarkdown(hardBreak))).toContain("first  \n");
   });
 
   it("does not indent list-like fenced code inside an outer code block", () => {
