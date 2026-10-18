@@ -142,6 +142,29 @@ describe("post editor Markdown codec", () => {
     });
   });
 
+  it.each(["path\\", "a\\]b", "a\\\\b", "[x]", "a]b", "a[b"])(
+    "round-trips an image alt without changing its literal characters: %s",
+    (alt) => {
+      const document = {
+        type: "doc",
+        content: [
+          {
+            type: "image",
+            attrs: { src: "https://example.com/image.webp", alt },
+          },
+        ],
+      };
+
+      const serialized = serializePostMarkdown(document);
+      const reparsed = parsePostMarkdown(serialized);
+
+      expect(reparsed.content?.[0]).toMatchObject({
+        type: "image",
+        attrs: { alt },
+      });
+    },
+  );
+
   it("normalizes editor Markdown and preserves image alt text", () => {
     const editor = new Editor({
       element: document.createElement("div"),

@@ -9,11 +9,20 @@ export function createPostEditorExtensions(): Extensions {
   return [
     StarterKit.configure({ link: { openOnClick: false } }),
     Image.extend({
+      parseMarkdown(token, helpers) {
+        const alt = (token.text ?? "").replace(/\\([\\[\]])/g, "$1");
+        return helpers.createNode("image", {
+          src: token.href,
+          title: token.title,
+          alt,
+        });
+      },
       renderMarkdown(node) {
         const alt = typeof node.attrs?.alt === "string" ? node.attrs.alt : "";
         const src = typeof node.attrs?.src === "string" ? node.attrs.src : "";
         const title = typeof node.attrs?.title === "string" ? ` "${node.attrs.title}"` : "";
-        return `![${alt.replace(/([\[\]])/g, "\\$1")}](${src}${title})`;
+        const escapedAlt = alt.replace(/\\/g, "\\\\").replace(/([\[\]])/g, "\\$1");
+        return `![${escapedAlt}](${src}${title})`;
       },
     }).configure({ inline: false, allowBase64: false }),
     Placeholder.configure({ placeholder: "Write something…" }),
@@ -73,19 +82,10 @@ function createMarkdownEditor(content: string | JSONContent): Editor {
 export function parsePostMarkdown(markdown: string): JSONContent {
   const editor = createMarkdownEditor(markdown);
   try {
-    const document = editor.getJSON();
-    normalizeImageAltText(document);
-    return document;
+    return editor.getJSON();
   } finally {
     editor.destroy();
   }
-}
-
-function normalizeImageAltText(node: JSONContent): void {
-  if (node.type === "image" && typeof node.attrs?.alt === "string") {
-    node.attrs.alt = node.attrs.alt.replace(/\\\\/g, "\\");
-  }
-  node.content?.forEach(normalizeImageAltText);
 }
 
 export function serializePostMarkdown(document: JSONContent): string {
@@ -192,7 +192,6 @@ export function getInitialPostEditorState(
     extensions: createPostEditorExtensions(),
   });
   const parsed = markdownManager.parse(markdown);
-  normalizeImageAltText(parsed);
   const serialized = markdownManager.serialize(parsed);
   if (
     normalizeMarkdownForComparison(serialized) ===
