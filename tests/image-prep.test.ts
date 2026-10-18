@@ -160,13 +160,29 @@ describe("post image preparation", () => {
     expect(decode).not.toHaveBeenCalled();
   });
 
-  it("returns GIF files unchanged", async () => {
-    const decode = vi.fn();
+  it("decodes GIF files before returning the original unchanged", async () => {
+    const bitmap = { width: 320, height: 240, close: vi.fn() };
+    const decode = vi.fn().mockResolvedValue(bitmap);
     vi.stubGlobal("createImageBitmap", decode);
-    const file = new File(["gif"], "animation.gif", { type: "image/gif" });
+    const file = new File(["GIF89a"], "animation.gif", { type: "image/gif" });
 
     await expect(preparePostImage(file)).resolves.toEqual({ file });
-    expect(decode).not.toHaveBeenCalled();
+    expect(decode).toHaveBeenCalledWith(file);
+    expect(bitmap.close).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ["corrupt", new File(["not a gif"], "corrupt.gif", { type: "image/gif" })],
+    ["truncated", new File(["GIF89a"], "truncated.gif", { type: "image/gif" })],
+  ])("rejects an undecodable %s GIF", async (_description, file) => {
+    vi.stubGlobal(
+      "createImageBitmap",
+      vi.fn().mockRejectedValue(new Error("decode failed")),
+    );
+
+    await expect(preparePostImage(file)).resolves.toEqual({
+      error: "Unable to read this image.",
+    });
   });
 
   it("encodes non-GIF files as named WebP and closes the bitmap", async () => {

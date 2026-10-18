@@ -90,7 +90,6 @@ export async function preparePostImage(
 ): Promise<{ file: File } | { error: string }> {
   const inputError = getInputError(file.type, file.size);
   if (inputError) return { error: inputError };
-  if (file.type === "image/gif") return { file };
 
   let bitmap: ImageBitmap;
   try {
@@ -100,6 +99,18 @@ export async function preparePostImage(
   }
 
   try {
+    if (file.type === "image/gif") {
+      if (
+        !Number.isFinite(bitmap.width) ||
+        !Number.isFinite(bitmap.height) ||
+        bitmap.width <= 0 ||
+        bitmap.height <= 0
+      ) {
+        return { error: "Unable to read this image." };
+      }
+      return { file };
+    }
+
     const decision = decideImagePrep({
       mimeType: file.type,
       rawBytes: file.size,
