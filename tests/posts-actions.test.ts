@@ -149,6 +149,15 @@ describe("post actions", () => {
         .toBe("/admin/posts/post-1?status=saved");
     });
 
+    it("persists rich-editor Markdown unchanged", async () => {
+      const markdown =
+        "![A photo](https://project.supabase.co/storage/v1/object/public/media/posts/inline/photo.webp)\n\n**Bold**";
+      await destinationOf(() =>
+        updatePost(form({ ...complete, body_md_en: markdown })),
+      );
+      expect(lastUpdate?.body_md_en).toBe(markdown);
+    });
+
     it("reports a duplicate slug specifically", async () => {
       injected.updateError = UNIQUE_VIOLATION;
       expect(await destinationOf(() => updatePost(form(complete))))

@@ -4,7 +4,7 @@ import { createContext, useContext, type ReactNode } from "react";
 
 type PostEditFormContextValue = {
   markDirty(): void;
-  reportPendingUploads(name: string, count: number): void;
+  reportPendingUploads(field: string, count: number): void;
 };
 
 const noOpContext: PostEditFormContextValue = {
