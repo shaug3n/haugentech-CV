@@ -8,6 +8,7 @@ import {
   parsePostMarkdown,
   serializePostMarkdown,
 } from "@/lib/admin/post-editor/markdown";
+import { renderMarkdown } from "@/lib/markdown";
 
 describe("post editor Markdown codec", () => {
   it("accepts empty Markdown as an untouched rich document", () => {
@@ -68,6 +69,61 @@ describe("post editor Markdown codec", () => {
       /\| :-+ \| :-+: \| -+: \|/,
     );
     expect(getInitialPostEditorState(markdown).mode).toBe("rich");
+  });
+
+  it("escapes every table-cell pipe without changing cell text", async () => {
+    const document = {
+      type: "doc",
+      content: [
+        {
+          type: "table",
+          content: [
+            {
+              type: "tableRow",
+              content: [
+                {
+                  type: "tableHeader",
+                  content: [{ type: "paragraph", content: [{ type: "text", text: "value" }] }],
+                },
+              ],
+            },
+            {
+              type: "tableRow",
+              content: [
+                {
+                  type: "tableCell",
+                  content: [
+                    {
+                      type: "paragraph",
+                      content: [
+                        { type: "text", text: "a || b and " },
+                        { type: "text", text: "x|y", marks: [{ type: "code" }] },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const serialized = serializePostMarkdown(document);
+    const reparsed = parsePostMarkdown(serialized);
+    const table = reparsed.content?.find((node) => node.type === "table");
+    const bodyCell = table?.content?.[1]?.content?.[0];
+    const cellText = (bodyCell?.content ?? [])
+      .flatMap((paragraph) => paragraph.content ?? [])
+      .map((node) => node.text ?? "")
+      .join("");
+    const html = await renderMarkdown(serialized);
+    const rendered = new DOMParser().parseFromString(html, "text/html");
+
+    expect(cellText).toBe("a || b and x|y");
+    expect(rendered.querySelectorAll("table tbody tr td")).toHaveLength(1);
+    expect(rendered.querySelector("table tbody tr td")?.textContent).toBe(
+      "a || b and x|y",
+    );
   });
 
   it("preserves blank lines inside fenced code while serializing and comparing", () => {

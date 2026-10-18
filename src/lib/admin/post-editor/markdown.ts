@@ -41,7 +41,13 @@ export function createPostEditorExtensions(): Extensions {
             const text = cell
               ? helpers.renderChildren(cell.content ?? []).trim()
               : "";
-            return text.replace(/(^|[^\\])\|/g, "$1\\|");
+            return text.replace(/\|/g, (pipe, offset: number, source: string) => {
+              let backslashes = 0;
+              for (let index = offset - 1; index >= 0 && source[index] === "\\"; index--) {
+                backslashes++;
+              }
+              return backslashes % 2 === 0 ? "\\|" : pipe;
+            });
           }),
         );
         const header = rows[0]?.content?.some(
