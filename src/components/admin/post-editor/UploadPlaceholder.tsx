@@ -5,8 +5,8 @@ import type { ReactElement } from "react";
 function UploadPlaceholder(): ReactElement {
   return (
     <NodeViewWrapper
-      as="div"
-      className="my-4 flex min-h-24 items-center justify-center rounded border border-neutral-300 bg-neutral-50"
+      as="span"
+      className="inline-flex h-8 w-8 items-center justify-center rounded border border-neutral-300 bg-neutral-50 align-middle"
       contentEditable={false}
       role="status"
       aria-label="Uploading image"
@@ -21,7 +21,8 @@ function UploadPlaceholder(): ReactElement {
 
 export const ImageUploadPlaceholder = Node.create({
   name: "imageUploadPlaceholder",
-  group: "block",
+  group: "inline",
+  inline: true,
   atom: true,
   selectable: false,
   draggable: false,
@@ -38,7 +39,7 @@ export const ImageUploadPlaceholder = Node.create({
 
   renderHTML({ HTMLAttributes }) {
     return [
-      "div",
+      "span",
       { ...HTMLAttributes, "data-image-upload-placeholder": "true" },
       "Uploading image…",
     ];

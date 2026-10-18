@@ -26,6 +26,27 @@ function makeEditor(): Editor {
   });
 }
 
+function makeParagraphEditor(): Editor {
+  return new Editor({
+    element: document.createElement("div"),
+    extensions: [...createPostEditorExtensions(), ImageUploadPlaceholder],
+    content: "hello world",
+    contentType: "markdown",
+  });
+}
+
+function firstPlaceholderId(editor: Editor): string | null {
+  let id: string | null = null;
+  editor.state.doc.descendants((node) => {
+    if (node.type.name === "imageUploadPlaceholder") {
+      id = node.attrs.id;
+      return false;
+    }
+    return id === null;
+  });
+  return id;
+}
+
 describe("inline image upload history", () => {
   beforeEach(() => {
     preparePostImage.mockReset().mockResolvedValue({ file });
@@ -46,7 +67,7 @@ describe("inline image upload history", () => {
       ({ uploadImageAtPosition }) => uploadImageAtPosition(editor, file, 1),
     );
     await vi.waitFor(() => expect(uploadPostImage).toHaveBeenCalledOnce());
-    const placeholderId = editor.state.doc.firstChild?.attrs.id;
+    const placeholderId = firstPlaceholderId(editor);
     expect(placeholderId).toBeTruthy();
 
     await new Promise((resolve) => setTimeout(resolve, 600));
@@ -77,13 +98,42 @@ describe("inline image upload history", () => {
     );
     const upload = uploadImageAtPosition(editor, file, 1);
     await vi.waitFor(() => expect(uploadPostImage).toHaveBeenCalledOnce());
-    const placeholderId = editor.state.doc.firstChild?.attrs.id;
+    const placeholderId = firstPlaceholderId(editor);
     await new Promise((resolve) => setTimeout(resolve, 600));
     resolveUpload({ error: "Image upload failed. Please try again." });
     await upload;
 
     editor.commands.undo();
     expect(findUploadPlaceholder(editor, placeholderId)).toBeNull();
+    editor.destroy();
+  });
+
+  it("undoes a successful mid-paragraph upload to the exact original document", async () => {
+    uploadPostImage.mockResolvedValue({ url: "https://example.com/image.png" });
+    const editor = makeParagraphEditor();
+    const original = editor.getJSON();
+    const { uploadImageAtPosition } = await import(
+      "@/components/admin/post-editor/image-upload"
+    );
+
+    await uploadImageAtPosition(editor, file, 6);
+    editor.commands.undo();
+
+    expect(editor.getJSON()).toEqual(original);
+    editor.destroy();
+  });
+
+  it("leaves a failed mid-paragraph upload's document unchanged", async () => {
+    uploadPostImage.mockResolvedValue({ error: "Image upload failed." });
+    const editor = makeParagraphEditor();
+    const original = editor.getJSON();
+    const { uploadImageAtPosition } = await import(
+      "@/components/admin/post-editor/image-upload"
+    );
+
+    await uploadImageAtPosition(editor, file, 6);
+
+    expect(editor.getJSON()).toEqual(original);
     editor.destroy();
   });
 });
