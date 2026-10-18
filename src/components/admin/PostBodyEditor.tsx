@@ -161,15 +161,17 @@ export function PostBodyEditor({
       )}
       {mode === "rich" && editor && (
         <>
-          <EditorToolbar
-            editor={editor}
-            mode={mode}
-            onModeChange={changeMode}
-            onInsertImage={() => openImagePicker(editor)}
-            hasPendingUploads={pendingIds.length > 0}
-          />
-          <div className="post-editor prose-md min-h-80 rounded-lg border border-neutral-300 px-3 py-2">
-            <EditorContent editor={editor} />
+          <div className="rounded-lg border border-neutral-300 bg-white transition-shadow focus-within:border-primary-soft focus-within:ring-2 focus-within:ring-primary-faint">
+            <EditorToolbar
+              editor={editor}
+              mode={mode}
+              onModeChange={changeMode}
+              onInsertImage={() => openImagePicker(editor)}
+              hasPendingUploads={pendingIds.length > 0}
+            />
+            <div className="post-editor prose-md min-h-80 px-4 py-3">
+              <EditorContent editor={editor} />
+            </div>
           </div>
           <BubbleMenu
             editor={editor}
@@ -200,7 +202,7 @@ export function PostBodyEditor({
         </>
       )}
       {mode === "markdown" && (
-        <>
+        <div className="rounded-lg border border-neutral-300 bg-white transition-shadow focus-within:border-primary-soft focus-within:ring-2 focus-within:ring-primary-faint">
           {editor && (
             <EditorToolbar
               editor={editor}
@@ -217,9 +219,10 @@ export function PostBodyEditor({
               markDirty();
             }}
             rows={16}
-            className="w-full rounded-lg border border-neutral-300 px-3 py-2 font-mono text-xs"
+            aria-label={`${label} (Markdown)`}
+            className="block w-full resize-y rounded-b-lg border-0 bg-transparent px-4 py-3 font-mono text-xs focus:outline-none"
           />
-        </>
+        </div>
       )}
       {uploadError && (
         <p className="mt-2 text-sm text-red-700" role="alert">
